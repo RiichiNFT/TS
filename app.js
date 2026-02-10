@@ -128,23 +128,30 @@ function showSuccess() {
   if (successDbHint) successDbHint.classList.add("is-hidden");
 }
 
+var EMAIL_MAX_LENGTH = 254;
+var DISCORD_MIN_LENGTH = 2;
+var DISCORD_MAX_LENGTH = 32;
+
 function validateEmail(value) {
-  const v = (value || "").trim();
+  var v = (value || "").trim();
   if (!v) return "Email is required.";
+  if (v.length > EMAIL_MAX_LENGTH) return "Email must be " + EMAIL_MAX_LENGTH + " characters or fewer.";
   if (v.length < 5) return "Invalid email address.";
   if (!v.includes("@")) return "Invalid email address.";
-  const atIdx = v.indexOf("@");
+  var atIdx = v.indexOf("@");
   if (atIdx === 0 || atIdx === v.length - 1) return "Invalid email address.";
-  const domain = v.slice(atIdx + 1);
+  var domain = v.slice(atIdx + 1);
   if (!domain.includes(".") || domain.length < 3) return "Invalid email address.";
   if (/[^\w.+-@]/.test(v)) return "Invalid email address.";
   return null;
 }
 
 function validateDiscord(value) {
-  const v = (value || "").trim();
+  var v = (value || "").trim();
   if (!v) return null;
-  if (v.length > 100) return "Discord handle is too long.";
+  if (v.length < DISCORD_MIN_LENGTH || v.length > DISCORD_MAX_LENGTH) {
+    return "Discord handle must be between " + DISCORD_MIN_LENGTH + " and " + DISCORD_MAX_LENGTH + " characters.";
+  }
   return null;
 }
 
@@ -209,20 +216,22 @@ function onComplete() {
   if (!confirm("Once you submit, you will not be able to change this information. Are you sure you want to continue?")) {
     return;
   }
-  const email = emailInput.value.trim();
-  const discord = discordInput.value.trim();
+  var emailRaw = emailInput.value;
+  var discordRaw = discordInput.value;
+  var email = (emailRaw || "").trim().toLowerCase();
+  var discord = (discordRaw || "").trim();
   emailError.textContent = "";
   discordError.textContent = "";
   emailInput.classList.remove("input-error");
   discordInput.classList.remove("input-error");
 
-  const emailErr = validateEmail(emailInput.value);
+  var emailErr = validateEmail(emailRaw);
   if (emailErr) {
     emailError.textContent = emailErr;
     emailInput.classList.add("input-error");
     return;
   }
-  const discordErr = validateDiscord(discordInput.value);
+  var discordErr = validateDiscord(discordRaw);
   if (discordErr) {
     discordError.textContent = discordErr;
     discordInput.classList.add("input-error");
