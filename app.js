@@ -81,11 +81,8 @@ const formEditable = document.getElementById("formEditable");
 const alreadySubmittedSection = document.getElementById("alreadySubmittedSection");
 const submittedEmailEl = document.getElementById("submittedEmail");
 const submittedDiscordEl = document.getElementById("submittedDiscord");
-const signToViewBlock = document.getElementById("signToViewBlock");
-const signToViewBtn = document.getElementById("signToViewBtn");
 
 let currentAddress = null;
-var pendingAlreadySubmitted = null;
 
 function getProvider() {
   if (typeof window === "undefined") return null;
@@ -104,8 +101,6 @@ function showConnectState() {
   successSection.classList.add("is-hidden");
   if (alreadySubmittedSection) alreadySubmittedSection.classList.add("is-hidden");
   if (formEditable) formEditable.classList.remove("is-hidden");
-  if (signToViewBlock) signToViewBlock.classList.add("is-hidden");
-  pendingAlreadySubmitted = null;
   sublineEl.textContent = "Connect your wallet to get started";
   currentAddress = null;
 }
@@ -133,8 +128,6 @@ function showJoinedState(address) {
   discordInput.value = "";
   if (formEditable) formEditable.classList.remove("is-hidden");
   if (alreadySubmittedSection) alreadySubmittedSection.classList.add("is-hidden");
-  if (signToViewBlock) signToViewBlock.classList.add("is-hidden");
-  pendingAlreadySubmitted = null;
   loadPrefill(address);
 }
 
@@ -148,60 +141,11 @@ function loadPrefill(address) {
     .then(function (r) {
       if (r.error) return;
       if (r.data && r.data.email_address) {
-        pendingAlreadySubmitted = {
-          email: r.data.email_address,
-          discord: r.data.discord_handle || ""
-        };
-        showSignToView();
-      } else if (r.data && (r.data.email_address || r.data.discord_handle)) {
+        return;
+      }
+      if (r.data && (r.data.email_address || r.data.discord_handle)) {
         if (r.data.email_address) emailInput.value = r.data.email_address;
         if (r.data.discord_handle) discordInput.value = r.data.discord_handle;
-      }
-    });
-}
-
-function showSignToView() {
-  if (formEditable) formEditable.classList.add("is-hidden");
-  if (alreadySubmittedSection) alreadySubmittedSection.classList.add("is-hidden");
-  if (signToViewBlock) signToViewBlock.classList.remove("is-hidden");
-  if (emailError) emailError.textContent = "";
-}
-
-function buildSignInMessage() {
-  var ts = new Date().toISOString();
-  return (
-    "Team Secret Inner Circle - Sign in to view your registration.\n\n" +
-    "Wallet: " + currentAddress + "\n" +
-    "Timestamp: " + ts
-  );
-}
-
-function onSignToView() {
-  if (!pendingAlreadySubmitted || !currentAddress) return;
-  var btn = signToViewBtn;
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "Check your wallet…";
-  }
-  var message = buildSignInMessage();
-  requestSignature(message)
-    .then(function () {
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = "Sign in";
-      }
-      showAlreadySubmitted(pendingAlreadySubmitted.email, pendingAlreadySubmitted.discord);
-      if (signToViewBlock) signToViewBlock.classList.add("is-hidden");
-    })
-    .catch(function (err) {
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = "Sign in";
-      }
-      if (err && err.code === 4001) {
-        if (emailError) emailError.textContent = "Signature cancelled.";
-      } else {
-        if (emailError) emailError.textContent = "Signature failed. Please try again.";
       }
     });
 }
@@ -343,14 +287,24 @@ function onComplete() {
     .then(function (signature) {
       completeBtn.textContent = "Saving…";
       sb.from(SUPABASE_TABLE)
-        .select("email_address")
+        .select("email_address, discord_handle")
         .eq("wallet_address", normalizeAddress(currentAddress))
         .maybeSingle()
         .then(function (existing) {
           if (existing.data && existing.data.email_address) {
-            completeBtn.disabled = false;
-            completeBtn.textContent = "Complete";
-            emailError.textContent = "You have already submitted. No changes can be made.";
+            sb.from(SUPABASE_TABLE)
+              .update({ signature: signature || null })
+              .eq("wallet_address", normalizeAddress(currentAddress))
+              .then(function (r) {
+                completeBtn.disabled = false;
+                completeBtn.textContent = "Complete";
+                if (r.error) {
+                  emailError.textContent = r.error.message || "Could not update.";
+                  return;
+                }
+                if (successDbHint) successDbHint.classList.add("is-hidden");
+                showAlreadySubmitted(existing.data.email_address, existing.data.discord_handle || "");
+              });
             return;
           }
           checkDuplicateEmailInSupabase(email, currentAddress, function (isDuplicate) {
@@ -434,7 +388,6 @@ function init() {
   connectButton.addEventListener("click", connectWallet);
   if (walletDisconnectBtn) walletDisconnectBtn.addEventListener("click", onDisconnect);
   completeBtn.addEventListener("click", onComplete);
-  if (signToViewBtn) signToViewBtn.addEventListener("click", onSignToView);
 }
 
 init();
