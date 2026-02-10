@@ -120,13 +120,13 @@ function loadPrefill(address) {
   var sb = getSupabase();
   if (!sb) return;
   sb.from(SUPABASE_TABLE)
-    .select("email, discord_handle")
+    .select("email_address, discord_handle")
     .eq("wallet_address", normalizeAddress(address))
     .maybeSingle()
     .then(function (r) {
       if (r.error) return;
-      if (r.data && (r.data.email || r.data.discord_handle)) {
-        if (r.data.email) emailInput.value = r.data.email;
+      if (r.data && (r.data.email_address || r.data.discord_handle)) {
+        if (r.data.email_address) emailInput.value = r.data.email_address;
         if (r.data.discord_handle) discordInput.value = r.data.discord_handle;
       }
     });
@@ -247,7 +247,7 @@ function onComplete() {
     completeBtn.textContent = "Saving…";
     sb.from(SUPABASE_TABLE)
       .update({
-        email: email,
+        email_address: email,
         discord_handle: discord || null
       })
       .eq("wallet_address", normalizeAddress(currentAddress))
