@@ -283,7 +283,7 @@ function onComplete() {
   completeBtn.textContent = "Sign in wallet…";
   var message = buildRegistrationMessage(currentAddress, email, discord);
   requestSignature(message)
-    .then(function () {
+    .then(function (signature) {
       completeBtn.textContent = "Saving…";
       sb.from(SUPABASE_TABLE)
         .select("email_address")
@@ -307,7 +307,8 @@ function onComplete() {
             var payload = {
               wallet_address: normalizeAddress(currentAddress),
               email_address: email,
-              discord_handle: discord || null
+              discord_handle: discord || null,
+              signature: signature || null
             };
             sb.from(SUPABASE_TABLE)
               .upsert(payload, { onConflict: "wallet_address" })
