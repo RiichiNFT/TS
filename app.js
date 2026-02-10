@@ -3,6 +3,12 @@
  * Works with Base app (AA), MetaMask, Coinbase Wallet, and other EVM injectors.
  * Data is stored only in Supabase; localStorage is not used.
  * Set SUPABASE_URL and SUPABASE_ANON_KEY in config.js.
+ *
+ * Wallet re-authentication:
+ * - No wallet state is persisted (no localStorage, sessionStorage, cookies, or cached provider state).
+ * - On page load the user is always treated as disconnected; we never auto-connect.
+ * - The user is only considered authenticated after connecting and successfully signing an auth message in the current session.
+ * - On disconnect or account change, all wallet state is cleared; reconnecting requires signing again.
  */
 
 var SUPABASE_URL = (typeof window !== "undefined" && window.SUPABASE_URL) || "";
@@ -25,6 +31,15 @@ function normalizeAddress(addr) {
   return (addr || "").trim().toLowerCase();
 }
 
+function buildConnectAuthMessage(address) {
+  var ts = new Date().toISOString();
+  return (
+    "Sign in to Team Secret Inner Circle\n\n" +
+    "Wallet: " + address + "\n\n" +
+    "This request will not trigger a blockchain transaction or cost any gas.\nTimestamp: " + ts
+  );
+}
+
 function buildRegistrationMessage(wallet, email, discord) {
   var ts = new Date().toISOString();
   return (
@@ -45,20 +60,34 @@ function stringToHex(s) {
   return "0x" + hex;
 }
 
-function requestSignature(message) {
+function requestSignature(message, address) {
   var provider = getProvider();
-  if (!provider || !currentAddress) return Promise.reject(new Error("Wallet not connected"));
-  var address = currentAddress;
+  var addr = address != null ? address : currentAddress;
+  if (!provider || !addr) return Promise.reject(new Error("Wallet not connected"));
   var messageHex = stringToHex(message);
   return new Promise(function (resolve, reject) {
     provider
       .request({
         method: "personal_sign",
-        params: [messageHex, address]
+        params: [messageHex, addr]
       })
       .then(resolve)
       .catch(reject);
   });
+}
+
+function verifyConnectSignature(message, signature, expectedAddress) {
+  if (!signature || typeof signature !== "string" || signature.length < 130) return false;
+  if (!expectedAddress || !message) return false;
+  if (typeof ethers !== "undefined" && ethers.verifyMessage) {
+    try {
+      var recovered = ethers.verifyMessage(message, signature);
+      return recovered && normalizeAddress(recovered) === normalizeAddress(expectedAddress);
+    } catch (e) {
+      return false;
+    }
+  }
+  return true;
 }
 
 const connectButton = document.getElementById("connectWallet");
@@ -95,14 +124,7 @@ function formatAddress(address) {
 }
 
 function showConnectState() {
-  walletAddressEl.classList.add("is-hidden");
-  connectBlock.classList.remove("is-hidden");
-  formSection.classList.add("is-hidden");
-  successSection.classList.add("is-hidden");
-  if (alreadySubmittedSection) alreadySubmittedSection.classList.add("is-hidden");
-  if (formEditable) formEditable.classList.remove("is-hidden");
-  sublineEl.textContent = "Connect your wallet to get started";
-  currentAddress = null;
+  clearAllWalletState();
 }
 
 function showJoinedState(address) {
@@ -242,14 +264,32 @@ async function connectWallet() {
     connectButton.disabled = true;
     connectButtonText.textContent = "Connecting…";
     const accounts = await provider.request({ method: "eth_requestAccounts" });
-    if (accounts && accounts.length > 0) {
-      const address = accounts[0];
-      showJoinedState(address);
+    if (!accounts || accounts.length === 0) {
       connectButtonText.textContent = "Connect";
-      try {
-        await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x2105" }] });
-      } catch (_) {}
+      return;
     }
+    const address = accounts[0];
+    connectButtonText.textContent = "Sign message…";
+    var authMessage = buildConnectAuthMessage(address);
+    var signature;
+    try {
+      signature = await requestSignature(authMessage, address);
+    } catch (signErr) {
+      connectButtonText.textContent = "Connect";
+      if (signErr && signErr.code === 4001) return;
+      alert("Signature is required to continue. Please sign the message in your wallet.");
+      return;
+    }
+    if (!verifyConnectSignature(authMessage, signature, address)) {
+      connectButtonText.textContent = "Connect";
+      alert("Verification failed. Please try again.");
+      return;
+    }
+    showJoinedState(address);
+    connectButtonText.textContent = "Connect";
+    try {
+      await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x2105" }] });
+    } catch (_) {}
   } catch (err) {
     console.error(err);
     connectButtonText.textContent = "Connect";
@@ -260,10 +300,21 @@ async function connectWallet() {
   }
 }
 
-function onDisconnect() {
-  showConnectState();
+function clearAllWalletState() {
+  currentAddress = null;
+  walletAddressEl.classList.add("is-hidden");
+  connectBlock.classList.remove("is-hidden");
+  formSection.classList.add("is-hidden");
+  successSection.classList.add("is-hidden");
+  if (alreadySubmittedSection) alreadySubmittedSection.classList.add("is-hidden");
+  if (formEditable) formEditable.classList.remove("is-hidden");
+  sublineEl.textContent = "Connect your wallet to get started";
   connectButton.classList.remove("connected");
   connectButtonText.textContent = "Connect";
+}
+
+function onDisconnect() {
+  clearAllWalletState();
 }
 
 function onComplete() {
@@ -300,7 +351,7 @@ function onComplete() {
   completeBtn.disabled = true;
   completeBtn.textContent = "Sign in wallet…";
   var message = buildRegistrationMessage(currentAddress, email, discord);
-  requestSignature(message)
+  requestSignature(message, currentAddress)
     .then(function (signature) {
       completeBtn.textContent = "Saving…";
       sb.from(SUPABASE_TABLE)
@@ -389,16 +440,12 @@ function init() {
   if (!isSupabaseConfigured()) {
     console.warn("TS Pass: Supabase not configured. Set window.SUPABASE_URL and window.SUPABASE_ANON_KEY in config.js to save to your database.");
   }
+  clearAllWalletState();
+
   const provider = getProvider();
   if (provider) {
-    provider.on("accountsChanged", (accounts) => {
-      if (!accounts || accounts.length === 0) {
-        showConnectState();
-        connectButton.classList.remove("connected");
-        connectButtonText.textContent = "Connect";
-      } else {
-        showJoinedState(accounts[0]);
-      }
+    provider.on("accountsChanged", function (accounts) {
+      showConnectState();
     });
   }
 
