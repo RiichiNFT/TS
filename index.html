@@ -14,7 +14,14 @@
   <div class="gradient-orb gradient-orb--1" aria-hidden="true"></div>
   <div class="gradient-orb gradient-orb--2" aria-hidden="true"></div>
 
-  <div class="wallet-address is-hidden" id="walletAddress" aria-live="polite"></div>
+  <div class="wallet-address is-hidden" id="walletAddress" aria-live="polite">
+      <span id="walletAddressText"></span>
+      <button type="button" class="wallet-disconnect" id="walletDisconnect" aria-label="Disconnect wallet" title="Disconnect">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
 
   <main class="main">
     <a href="https://teamsecret.gg" target="_blank" rel="noopener noreferrer" class="logo-link">
@@ -33,10 +40,6 @@
         <span class="btn-connect__text" id="connectButtonText">Connect</span>
       </button>
       <p class="wallet-hint">Works with Base, MetaMask, Coinbase Wallet & other EVM wallets</p>
-    </div>
-
-    <div class="join-block is-hidden" id="joinBlock">
-      <button type="button" class="btn-connect btn-join-now" id="joinNowBtn">Join Now</button>
     </div>
 
     <div class="form-section is-hidden" id="formSection">

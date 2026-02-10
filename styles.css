@@ -84,7 +84,10 @@ body {
   top: 20px;
   right: 20px;
   z-index: 10;
-  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 14px;
   font-family: var(--font);
   font-size: 0.85rem;
   font-weight: 500;
@@ -95,12 +98,43 @@ body {
   backdrop-filter: blur(8px);
 }
 
+.wallet-disconnect {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.wallet-disconnect:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.wallet-disconnect:focus {
+  outline: none;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+}
+
 @media (max-width: 420px) {
   .wallet-address {
     top: 12px;
     right: 12px;
-    padding: 6px 12px;
+    padding: 6px 8px 6px 12px;
     font-size: 0.8rem;
+    gap: 6px;
+  }
+  .wallet-disconnect {
+    width: 24px;
+    height: 24px;
   }
 }
 
@@ -255,15 +289,10 @@ body {
   max-width: 280px;
 }
 
-.connect-block,
-.join-block {
+.connect-block {
   display: flex;
   flex-direction: column;
   align-items: center;
-}
-
-.btn-join-now {
-  min-width: 160px;
 }
 
 /* --- Form --- */

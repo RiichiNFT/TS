@@ -1,5 +1,5 @@
 /**
- * Team Secret Inner Circle Pass — Connect, Join Now, form, persistence.
+ * Team Secret Inner Circle Pass — Connect, form, persistence.
  * Works with Base app (AA), MetaMask, Coinbase Wallet, and other EVM injectors.
  */
 
@@ -8,10 +8,10 @@ const STORAGE_KEY = "ts-pass-registrations";
 const connectButton = document.getElementById("connectWallet");
 const connectButtonText = document.getElementById("connectButtonText");
 const walletAddressEl = document.getElementById("walletAddress");
+const walletAddressText = document.getElementById("walletAddressText");
+const walletDisconnectBtn = document.getElementById("walletDisconnect");
 const sublineEl = document.getElementById("subline");
 const connectBlock = document.getElementById("connectBlock");
-const joinBlock = document.getElementById("joinBlock");
-const joinNowBtn = document.getElementById("joinNowBtn");
 const formSection = document.getElementById("formSection");
 const emailInput = document.getElementById("emailInput");
 const discordInput = document.getElementById("discordInput");
@@ -57,7 +57,6 @@ function loadSavedForAddress(address) {
 function showConnectState() {
   walletAddressEl.classList.add("is-hidden");
   connectBlock.classList.remove("is-hidden");
-  joinBlock.classList.add("is-hidden");
   formSection.classList.add("is-hidden");
   successSection.classList.add("is-hidden");
   sublineEl.textContent = "Connect your wallet to get started";
@@ -67,19 +66,13 @@ function showConnectState() {
 function showJoinedState(address) {
   currentAddress = address;
   const short = formatAddress(address);
-  walletAddressEl.textContent = short;
+  if (walletAddressText) walletAddressText.textContent = short;
   walletAddressEl.classList.remove("is-hidden");
   connectBlock.classList.add("is-hidden");
-  joinBlock.classList.remove("is-hidden");
-  formSection.classList.add("is-hidden");
   successSection.classList.add("is-hidden");
-  sublineEl.textContent = "You're connected. Join the Inner Circle below.";
-}
-
-function showForm(prefill) {
   formSection.classList.remove("is-hidden");
-  joinBlock.classList.add("is-hidden");
-  successSection.classList.add("is-hidden");
+  sublineEl.textContent = "Complete your details below.";
+  const prefill = loadSavedForAddress(address);
   if (prefill) {
     emailInput.value = prefill.email || "";
     discordInput.value = prefill.discord || "";
@@ -95,21 +88,19 @@ function showForm(prefill) {
 
 function showSuccess() {
   formSection.classList.add("is-hidden");
-  joinBlock.classList.add("is-hidden");
   successSection.classList.remove("is-hidden");
 }
 
 function validateEmail(value) {
   const v = (value || "").trim();
   if (!v) return "Email is required.";
-  if (v.length < 5) return "Email is too short.";
-  if (!v.includes("@")) return "Email must contain @.";
+  if (v.length < 5) return "Invalid email address.";
+  if (!v.includes("@")) return "Invalid email address.";
   const atIdx = v.indexOf("@");
-  if (atIdx === 0 || atIdx === v.length - 1) return "Please enter a valid email.";
-  const local = v.slice(0, atIdx);
+  if (atIdx === 0 || atIdx === v.length - 1) return "Invalid email address.";
   const domain = v.slice(atIdx + 1);
-  if (!domain.includes(".") || domain.length < 3) return "Please enter a valid email.";
-  if (/[^\w.+-@]/.test(v)) return "Email contains invalid characters.";
+  if (!domain.includes(".") || domain.length < 3) return "Invalid email address.";
+  if (/[^\w.+-@]/.test(v)) return "Invalid email address.";
   return null;
 }
 
@@ -158,9 +149,10 @@ async function connectWallet() {
   }
 }
 
-function onJoinNow() {
-  const prefill = currentAddress ? loadSavedForAddress(currentAddress) : null;
-  showForm(prefill);
+function onDisconnect() {
+  showConnectState();
+  connectButton.classList.remove("connected");
+  connectButtonText.textContent = "Connect";
 }
 
 function onComplete() {
@@ -210,7 +202,7 @@ function init() {
   }
 
   connectButton.addEventListener("click", connectWallet);
-  joinNowBtn.addEventListener("click", onJoinNow);
+  if (walletDisconnectBtn) walletDisconnectBtn.addEventListener("click", onDisconnect);
   completeBtn.addEventListener("click", onComplete);
 }
 
