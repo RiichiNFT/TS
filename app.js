@@ -99,6 +99,7 @@ const connectButtonText = document.getElementById("connectButtonText");
 const walletAddressEl = document.getElementById("walletAddress");
 const walletAddressText = document.getElementById("walletAddressText");
 const walletDisconnectBtn = document.getElementById("walletDisconnect");
+const taglineEl = document.getElementById("tagline");
 const sublineEl = document.getElementById("subline");
 const connectBlock = document.getElementById("connectBlock");
 const formSection = document.getElementById("formSection");
@@ -133,6 +134,7 @@ function showConnectState() {
 
 function showJoinedState(address) {
   currentAddress = address;
+  if (taglineEl) taglineEl.textContent = TAGLINE_DEFAULT;
   const short = formatAddress(address);
   if (walletAddressText) walletAddressText.textContent = short;
   walletAddressEl.classList.remove("is-hidden");
@@ -181,7 +183,6 @@ function loadExistingEntry(address, callback) {
 function loadPrefill(address) {
   loadExistingEntry(address, function (data) {
     if (data && data.email_address) {
-      sublineEl.textContent = "You're already registered.";
       showAlreadySubmitted(data.email_address, data.discord_handle || "");
       return;
     }
@@ -194,6 +195,8 @@ function loadPrefill(address) {
 }
 
 function showAlreadySubmitted(email, discord) {
+  if (taglineEl) taglineEl.textContent = "You're already registered.";
+  sublineEl.textContent = "";
   if (formEditable) formEditable.classList.add("is-hidden");
   if (alreadySubmittedSection) {
     if (submittedEmailEl) submittedEmailEl.textContent = email;
@@ -331,6 +334,8 @@ async function connectWallet() {
   }
 }
 
+var TAGLINE_DEFAULT = "The Inner Circle awaits...";
+
 function clearAllWalletState() {
   currentAddress = null;
   walletAddressEl.classList.add("is-hidden");
@@ -339,6 +344,7 @@ function clearAllWalletState() {
   successSection.classList.add("is-hidden");
   if (alreadySubmittedSection) alreadySubmittedSection.classList.add("is-hidden");
   if (formEditable) formEditable.classList.remove("is-hidden");
+  if (taglineEl) taglineEl.textContent = TAGLINE_DEFAULT;
   sublineEl.textContent = "Connect your wallet to get started";
   connectButton.classList.remove("connected");
   connectButtonText.textContent = "Connect";
