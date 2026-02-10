@@ -35,7 +35,7 @@ Data is saved to your **Supabase** table **"TS Pass Claim"** when you configure 
 2. **Table name:** The app uses the table name in `config.js` (`window.SUPABASE_TABLE`). Default is `"TS Pass Claim"`. If your table has a different name (e.g. `ts_pass_claim`), set `window.SUPABASE_TABLE` to that name.
 3. **Expected columns:** `wallet_address` (text, unique), `email_address` (text, nullable), `discord_handle` (text, nullable). On connect we upsert a row by `wallet_address`; on Complete we update `email` and `discord_handle` for that row.
 
-Data is also stored in the browser’s **localStorage** as a fallback and for pre-fill.
+Only Supabase is used for storage; localStorage is not used for form data.
 
 **Database still empty?**
 

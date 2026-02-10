@@ -1,11 +1,9 @@
 /**
  * Team Secret Inner Circle Pass — Connect, form, persistence.
  * Works with Base app (AA), MetaMask, Coinbase Wallet, and other EVM injectors.
- * Data is stored in Supabase table "TS Pass Claim" (and in localStorage as fallback).
+ * Data is stored only in Supabase; localStorage is not used.
  * Set SUPABASE_URL and SUPABASE_ANON_KEY in config.js.
  */
-
-const STORAGE_KEY = "ts-pass-registrations";
 
 var SUPABASE_URL = (typeof window !== "undefined" && window.SUPABASE_URL) || "";
 var SUPABASE_ANON_KEY = (typeof window !== "undefined" && window.SUPABASE_ANON_KEY) || "";
@@ -56,28 +54,6 @@ function formatAddress(address) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
-function getRegistrations() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function setRegistrations(data) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch (e) {
-    console.error(e);
-  }
-}
-
-function loadSavedForAddress(address) {
-  const reg = getRegistrations();
-  return reg[address] || null;
-}
-
 function showConnectState() {
   walletAddressEl.classList.add("is-hidden");
   connectBlock.classList.remove("is-hidden");
@@ -112,11 +88,6 @@ function showJoinedState(address) {
 }
 
 function loadPrefill(address) {
-  const fromLocal = loadSavedForAddress(address);
-  if (fromLocal) {
-    emailInput.value = fromLocal.email || "";
-    discordInput.value = fromLocal.discord || "";
-  }
   var sb = getSupabase();
   if (!sb) return;
   sb.from(SUPABASE_TABLE)
@@ -158,14 +129,27 @@ function validateDiscord(value) {
   return null;
 }
 
-function isDuplicateEmail(email, excludeAddress) {
-  const reg = getRegistrations();
-  const normalized = (email || "").trim().toLowerCase();
-  for (const [addr, data] of Object.entries(reg)) {
-    if (addr === excludeAddress) continue;
-    if ((data.email || "").trim().toLowerCase() === normalized) return true;
+function checkDuplicateEmailInSupabase(email, excludeWalletAddress, callback) {
+  var sb = getSupabase();
+  if (!sb) {
+    callback(false);
+    return;
   }
-  return false;
+  var normalized = (email || "").trim().toLowerCase();
+  var currentNorm = normalizeAddress(excludeWalletAddress);
+  sb.from(SUPABASE_TABLE)
+    .select("wallet_address")
+    .eq("email_address", normalized)
+    .then(function (r) {
+      if (r.error || !r.data) {
+        callback(false);
+        return;
+      }
+      var anotherWalletHasEmail = r.data.some(function (row) {
+        return ((row.wallet_address || "").toLowerCase() !== currentNorm);
+      });
+      callback(anotherWalletHasEmail);
+    });
 }
 
 async function connectWallet() {
@@ -182,24 +166,6 @@ async function connectWallet() {
       const address = accounts[0];
       showJoinedState(address);
       connectButtonText.textContent = "Connect";
-      var sb = getSupabase();
-      if (sb) {
-        var payload = { wallet_address: normalizeAddress(address) };
-        sb.from(SUPABASE_TABLE)
-          .upsert(payload, { onConflict: "wallet_address" })
-          .then(function (r) {
-            if (r.error) {
-              var isNoConstraint = (r.error.message || "").indexOf("no unique or exclusion constraint") !== -1;
-              if (isNoConstraint) {
-                sb.from(SUPABASE_TABLE).insert(payload).then(function (r2) {
-                  if (r2.error) console.error("Supabase insert on connect:", r2.error.message, r2.error);
-                });
-              } else {
-                console.error("Supabase upsert on connect:", r.error.message, r.error);
-              }
-            }
-          });
-      }
       try {
         await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x2105" }] });
       } catch (_) {}
@@ -240,54 +206,60 @@ function onComplete() {
     discordInput.classList.add("input-error");
     return;
   }
-  if (currentAddress && isDuplicateEmail(email, currentAddress)) {
-    emailError.textContent = "This email is already registered.";
-    emailInput.classList.add("input-error");
+  var sb = getSupabase();
+  if (!sb) {
+    emailError.textContent = "Database not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY in config.js.";
     return;
   }
 
-  var sb = getSupabase();
-  if (sb) {
-    completeBtn.disabled = true;
-    completeBtn.textContent = "Saving…";
+  completeBtn.disabled = true;
+  completeBtn.textContent = "Saving…";
+  checkDuplicateEmailInSupabase(email, currentAddress, function (isDuplicate) {
+    if (isDuplicate) {
+      completeBtn.disabled = false;
+      completeBtn.textContent = "Complete";
+      emailError.textContent = "This email is already registered.";
+      emailInput.classList.add("input-error");
+      return;
+    }
+    var payload = {
+      wallet_address: normalizeAddress(currentAddress),
+      email_address: email,
+      discord_handle: discord || null
+    };
     sb.from(SUPABASE_TABLE)
-      .update({
-        email_address: email,
-        discord_handle: discord || null
-      })
-      .eq("wallet_address", normalizeAddress(currentAddress))
+      .upsert(payload, { onConflict: "wallet_address" })
       .then(function (r) {
         completeBtn.disabled = false;
         completeBtn.textContent = "Complete";
         if (r.error) {
+          var isNoConstraint = (r.error.message || "").indexOf("no unique or exclusion constraint") !== -1;
+          if (isNoConstraint) {
+            sb.from(SUPABASE_TABLE).insert(payload).then(function (r2) {
+              completeBtn.disabled = false;
+              completeBtn.textContent = "Complete";
+              if (r2.error) {
+                emailError.textContent = r2.error.message || "Could not save to database.";
+                console.error("Supabase insert:", r2.error);
+                return;
+              }
+              if (successDbHint) successDbHint.classList.add("is-hidden");
+              showSuccess();
+            });
+            return;
+          }
           var msg = r.error.message || "Could not save to database.";
-          if (r.error.code === "PGRST116") {
-            msg = "No row found for this wallet. Table name or columns may be wrong. Use table name from Supabase (e.g. ts_pass_claim).";
-          } else if (r.error.message && r.error.message.indexOf("row-level security") !== -1) {
+          if (r.error.message && r.error.message.indexOf("row-level security") !== -1) {
             msg = "Database rejected: Row Level Security. Allow insert/update for anon in Supabase.";
           }
           emailError.textContent = msg;
-          console.error("Supabase update:", r.error);
+          console.error("Supabase upsert:", r.error);
           return;
         }
         if (successDbHint) successDbHint.classList.add("is-hidden");
-        saveAndShowSuccess(email, discord);
+        showSuccess();
       });
-  } else {
-    if (sublineDbHint) sublineDbHint.classList.add("is-hidden");
-    saveAndShowSuccess(email, discord);
-    if (successDbHint) {
-      successDbHint.textContent = "Saved in this browser only. Add SUPABASE_URL and SUPABASE_ANON_KEY in config.js to save to your database.";
-      successDbHint.classList.remove("is-hidden");
-    }
-  }
-}
-
-function saveAndShowSuccess(email, discord) {
-  const reg = getRegistrations();
-  reg[currentAddress] = { email: email, discord: discord };
-  setRegistrations(reg);
-  showSuccess();
+  });
 }
 
 function init() {
