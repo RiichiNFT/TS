@@ -14,23 +14,51 @@
   <div class="gradient-orb gradient-orb--1" aria-hidden="true"></div>
   <div class="gradient-orb gradient-orb--2" aria-hidden="true"></div>
 
+  <div class="wallet-address is-hidden" id="walletAddress" aria-live="polite"></div>
+
   <main class="main">
     <a href="https://teamsecret.gg" target="_blank" rel="noopener noreferrer" class="logo-link">
       <img src="eye.png" alt="Team Secret" class="logo logo-eye-img" />
     </a>
     <p class="tagline">The Inner Circle awaits...</p>
-    <p class="subline">Connect your wallet to get started</p>
+    <p class="subline" id="subline">Connect your wallet to get started</p>
 
-    <button type="button" class="btn-connect" id="connectWallet" aria-label="Connect wallet">
-      <span class="btn-connect__icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path d="M21 12V7H5V12M21 12H17V17H21V12M21 12V17H3V7H21V12M7 12V17H3V12H7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+    <div class="connect-block" id="connectBlock">
+      <button type="button" class="btn-connect" id="connectWallet" aria-label="Connect wallet">
+        <span class="btn-connect__icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M21 12V7H5V12M21 12H17V17H21V12M21 12V17H3V7H21V12M7 12V17H3V12H7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span class="btn-connect__text" id="connectButtonText">Connect</span>
+      </button>
+      <p class="wallet-hint">Works with Base, MetaMask, Coinbase Wallet & other EVM wallets</p>
+    </div>
+
+    <div class="join-block is-hidden" id="joinBlock">
+      <button type="button" class="btn-connect btn-join-now" id="joinNowBtn">Join Now</button>
+    </div>
+
+    <div class="form-section is-hidden" id="formSection">
+      <div class="form-row">
+        <label for="emailInput">Email <span class="required">(mandatory)</span></label>
+        <input type="email" id="emailInput" class="input" placeholder="you@example.com" autocomplete="email" />
+        <span class="field-error" id="emailError" aria-live="polite"></span>
+      </div>
+      <div class="form-row">
+        <label for="discordInput">Discord Handle <span class="optional">(optional)</span></label>
+        <input type="text" id="discordInput" class="input" placeholder="username#1234" autocomplete="off" />
+        <span class="field-error" id="discordError" aria-live="polite"></span>
+      </div>
+      <button type="button" class="btn-connect btn-complete" id="completeBtn">Complete</button>
+    </div>
+
+    <div class="success-section is-hidden" id="successSection">
+      <span class="success-check" aria-hidden="true">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
       </span>
-      <span class="btn-connect__text" id="connectButtonText">Connect</span>
-    </button>
-
-    <p class="wallet-hint">Works with Base, MetaMask, Coinbase Wallet & other EVM wallets</p>
+      <p class="success-message">Stay tuned for Team Secret updates</p>
+    </div>
   </main>
 
   <footer class="footer">
