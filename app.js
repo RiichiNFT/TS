@@ -258,6 +258,33 @@ function checkDuplicateEmailInSupabase(email, excludeWalletAddress, callback) {
     });
 }
 
+function checkDuplicateDiscordInSupabase(discord, excludeWalletAddress, callback) {
+  var sb = getSupabase();
+  if (!sb) {
+    callback(false);
+    return;
+  }
+  var normalized = (discord || "").trim();
+  if (!normalized) {
+    callback(false);
+    return;
+  }
+  var currentNorm = normalizeAddress(excludeWalletAddress);
+  sb.from(SUPABASE_TABLE)
+    .select("wallet_address")
+    .eq("discord_handle", normalized)
+    .then(function (r) {
+      if (r.error || !r.data) {
+        callback(false);
+        return;
+      }
+      var anotherWalletHasDiscord = r.data.some(function (row) {
+        return (row.wallet_address || "").toLowerCase() !== currentNorm;
+      });
+      callback(anotherWalletHasDiscord);
+    });
+}
+
 async function connectWallet() {
   const provider = getProvider();
   if (!provider) {
@@ -353,84 +380,94 @@ function onComplete() {
   }
 
   completeBtn.disabled = true;
-  completeBtn.textContent = "Sign in wallet…";
-  var message = buildRegistrationMessage(currentAddress, email, discord);
-  requestSignature(message, currentAddress)
-    .then(function (signature) {
-      if (!verifySignature(message, signature, currentAddress)) {
+  completeBtn.textContent = "Checking…";
+  checkDuplicateEmailInSupabase(email, currentAddress, function (isEmailDuplicate) {
+    if (isEmailDuplicate) {
+      completeBtn.disabled = false;
+      completeBtn.textContent = "Complete";
+      emailError.textContent = "This email is already registered.";
+      emailInput.classList.add("input-error");
+      return;
+    }
+    checkDuplicateDiscordInSupabase(discord, currentAddress, function (isDiscordDuplicate) {
+      if (isDiscordDuplicate) {
         completeBtn.disabled = false;
         completeBtn.textContent = "Complete";
-        emailError.textContent = "Signature verification failed. The signature does not match the submitted information. Please try again.";
+        discordError.textContent = "This Discord handle is already registered.";
+        discordInput.classList.add("input-error");
         return;
       }
-      completeBtn.textContent = "Saving…";
-      sb.from(SUPABASE_TABLE)
-        .select("email_address, discord_handle")
-        .eq("wallet_address", normalizeAddress(currentAddress))
-        .maybeSingle()
-        .then(function (existing) {
-          if (existing.data && existing.data.email_address) {
-            sb.from(SUPABASE_TABLE)
-              .update({ signature: signature || null })
-              .eq("wallet_address", normalizeAddress(currentAddress))
-              .then(function (r) {
-                completeBtn.disabled = false;
-                completeBtn.textContent = "Complete";
-                if (r.error) {
-                  emailError.textContent = r.error.message || "Could not update.";
-                  return;
-                }
-                if (successDbHint) successDbHint.classList.add("is-hidden");
-                showAlreadySubmitted(existing.data.email_address, existing.data.discord_handle || "");
-              });
+      completeBtn.textContent = "Sign in wallet…";
+      var message = buildRegistrationMessage(currentAddress, email, discord);
+      requestSignature(message, currentAddress)
+        .then(function (signature) {
+          if (!verifySignature(message, signature, currentAddress)) {
+            completeBtn.disabled = false;
+            completeBtn.textContent = "Complete";
+            emailError.textContent = "Signature verification failed. The signature does not match the submitted information. Please try again.";
             return;
           }
-          checkDuplicateEmailInSupabase(email, currentAddress, function (isDuplicate) {
-            if (isDuplicate) {
-              completeBtn.disabled = false;
-              completeBtn.textContent = "Complete";
-              emailError.textContent = "This email is already registered.";
-              emailInput.classList.add("input-error");
-              return;
-            }
-            var payload = {
-              wallet_address: normalizeAddress(currentAddress),
-              email_address: email,
-              discord_handle: discord || null,
-              signature: signature || null
-            };
-            sb.from(SUPABASE_TABLE)
-              .upsert(payload, { onConflict: "wallet_address" })
-              .then(function (r) {
-                completeBtn.disabled = false;
-                completeBtn.textContent = "Complete";
-                if (r.error) {
-                  var isNoConstraint = (r.error.message || "").indexOf("no unique or exclusion constraint") !== -1;
-                  if (isNoConstraint) {
-                    sb.from(SUPABASE_TABLE).insert(payload).then(function (r2) {
-                      completeBtn.disabled = false;
-                      completeBtn.textContent = "Complete";
-                      if (r2.error) {
-                        emailError.textContent = r2.error.message || "Could not save to database.";
-                        console.error("Supabase insert:", r2.error);
-                        return;
-                      }
-                      if (successDbHint) successDbHint.classList.add("is-hidden");
-                      showAlreadySubmitted(email, discord);
-                    });
+          completeBtn.textContent = "Saving…";
+          sb.from(SUPABASE_TABLE)
+            .select("email_address, discord_handle")
+            .eq("wallet_address", normalizeAddress(currentAddress))
+            .maybeSingle()
+            .then(function (existing) {
+              if (existing.data && existing.data.email_address) {
+                sb.from(SUPABASE_TABLE)
+                  .update({ signature: signature || null })
+                  .eq("wallet_address", normalizeAddress(currentAddress))
+                  .then(function (r) {
+                    completeBtn.disabled = false;
+                    completeBtn.textContent = "Complete";
+                    if (r.error) {
+                      emailError.textContent = r.error.message || "Could not update.";
+                      return;
+                    }
+                    if (successDbHint) successDbHint.classList.add("is-hidden");
+                    showAlreadySubmitted(existing.data.email_address, existing.data.discord_handle || "");
+                  });
+                return;
+              }
+              var payload = {
+                wallet_address: normalizeAddress(currentAddress),
+                email_address: email,
+                discord_handle: discord || null,
+                signature: signature || null
+              };
+              sb.from(SUPABASE_TABLE)
+                .upsert(payload, { onConflict: "wallet_address" })
+                .then(function (r) {
+                  completeBtn.disabled = false;
+                  completeBtn.textContent = "Complete";
+                  if (r.error) {
+                    var isNoConstraint = (r.error.message || "").indexOf("no unique or exclusion constraint") !== -1;
+                    if (isNoConstraint) {
+                      sb.from(SUPABASE_TABLE).insert(payload).then(function (r2) {
+                        completeBtn.disabled = false;
+                        completeBtn.textContent = "Complete";
+                        if (r2.error) {
+                          emailError.textContent = r2.error.message || "Could not save to database.";
+                          console.error("Supabase insert:", r2.error);
+                          return;
+                        }
+                        if (successDbHint) successDbHint.classList.add("is-hidden");
+                        showAlreadySubmitted(email, discord);
+                      });
+                      return;
+                    }
+                    var msg = r.error.message || "Could not save to database.";
+                    if (r.error.message && r.error.message.indexOf("row-level security") !== -1) {
+                      msg = "Database rejected: Row Level Security. Allow insert/update for anon in Supabase.";
+                    }
+                    emailError.textContent = msg;
+                    console.error("Supabase upsert:", r.error);
                     return;
                   }
-                  var msg = r.error.message || "Could not save to database.";
-                  if (r.error.message && r.error.message.indexOf("row-level security") !== -1) {
-                    msg = "Database rejected: Row Level Security. Allow insert/update for anon in Supabase.";
-                  }
-                  emailError.textContent = msg;
-                  console.error("Supabase upsert:", r.error);
-                  return;
-                }
-                if (successDbHint) successDbHint.classList.add("is-hidden");
-                showAlreadySubmitted(email, discord);
-              });
+                  if (successDbHint) successDbHint.classList.add("is-hidden");
+                  showAlreadySubmitted(email, discord);
+                });
+            });
           });
         });
     })
