@@ -184,14 +184,19 @@ async function connectWallet() {
       connectButtonText.textContent = "Connect";
       var sb = getSupabase();
       if (sb) {
+        var payload = { wallet_address: normalizeAddress(address) };
         sb.from(SUPABASE_TABLE)
-          .upsert(
-            { wallet_address: normalizeAddress(address) },
-            { onConflict: "wallet_address" }
-          )
+          .upsert(payload, { onConflict: "wallet_address" })
           .then(function (r) {
             if (r.error) {
-              console.error("Supabase upsert on connect:", r.error.message, r.error);
+              var isNoConstraint = (r.error.message || "").indexOf("no unique or exclusion constraint") !== -1;
+              if (isNoConstraint) {
+                sb.from(SUPABASE_TABLE).insert(payload).then(function (r2) {
+                  if (r2.error) console.error("Supabase insert on connect:", r2.error.message, r2.error);
+                });
+              } else {
+                console.error("Supabase upsert on connect:", r.error.message, r.error);
+              }
             }
           });
       }

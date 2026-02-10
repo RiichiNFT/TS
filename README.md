@@ -43,6 +43,7 @@ Data is also stored in the browser’s **localStorage** as a fallback and for pr
 - **Table name:** If your table in Supabase has a different name (e.g. `ts_pass_claim`), set `window.SUPABASE_TABLE` in `config.js` to that exact name (as shown in Supabase Table Editor).
 - **Row Level Security (RLS):** If RLS is enabled, add policies that allow the `anon` role to `INSERT` and `UPDATE` rows on your table (e.g. allow all for testing, or restrict by column later).
 - **Columns:** Ensure the table has columns `wallet_address`, `email_address`, and `discord_handle`. Names are case-sensitive in the API.
+- **Unique constraint:** If you see "no unique or exclusion constraint matching the ON CONFLICT specification", your table does not have a unique constraint on `wallet_address`. The app will fall back to insert, but you may get duplicate rows. In Supabase SQL Editor run: `ALTER TABLE "TS Pass Claims" ADD UNIQUE (wallet_address);` (adjust table name if different) so one row per wallet is enforced and upsert works.
 
 ## Planned (next steps)
 
