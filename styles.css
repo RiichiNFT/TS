@@ -423,15 +423,38 @@ body {
   margin-bottom: 4px;
 }
 
-.already-submitted .submitted-info {
-  margin: 0;
+.submitted-rows {
+  width: 100%;
+  max-width: 320px;
+  text-align: left;
+}
+
+.submitted-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
   font-size: 0.95rem;
   color: var(--text);
-  text-align: center;
+}
+
+.submitted-row:last-of-type {
+  margin-bottom: 0;
+}
+
+.submitted-label {
+  flex-shrink: 0;
+  min-width: 64px;
+  font-weight: 600;
+}
+
+.submitted-bracket {
+  flex: 1;
+  word-break: break-word;
 }
 
 .already-submitted .submitted-note {
-  margin: 0;
+  margin: 12px 0 0;
   font-size: 0.85rem;
   color: var(--text-muted);
   font-style: italic;

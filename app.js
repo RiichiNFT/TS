@@ -277,21 +277,21 @@ function onComplete() {
                     return;
                   }
                   if (successDbHint) successDbHint.classList.add("is-hidden");
-                  showSuccess();
+                  showAlreadySubmitted(email, discord);
                 });
                 return;
               }
-              var msg = r.error.message || "Could not save to database.";
-              if (r.error.message && r.error.message.indexOf("row-level security") !== -1) {
-                msg = "Database rejected: Row Level Security. Allow insert/update for anon in Supabase.";
-              }
-              emailError.textContent = msg;
-              console.error("Supabase upsert:", r.error);
-              return;
-            }
-            if (successDbHint) successDbHint.classList.add("is-hidden");
-            showSuccess();
-          });
+          var msg = r.error.message || "Could not save to database.";
+          if (r.error.message && r.error.message.indexOf("row-level security") !== -1) {
+            msg = "Database rejected: Row Level Security. Allow insert/update for anon in Supabase.";
+          }
+          emailError.textContent = msg;
+          console.error("Supabase upsert:", r.error);
+          return;
+        }
+        if (successDbHint) successDbHint.classList.add("is-hidden");
+        showAlreadySubmitted(email, discord);
+      });
       });
     });
 }

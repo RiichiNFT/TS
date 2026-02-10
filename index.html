@@ -63,8 +63,16 @@
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
         </span>
         <p class="success-message">You have already submitted.</p>
-        <p class="submitted-info"><strong>Email:</strong> <span id="submittedEmail"></span></p>
-        <p class="submitted-info"><strong>Discord:</strong> <span id="submittedDiscord"></span></p>
+        <div class="submitted-rows">
+          <div class="submitted-row">
+            <span class="submitted-label">Email</span>
+            <span class="submitted-bracket">[ <span id="submittedEmail"></span> ]</span>
+          </div>
+          <div class="submitted-row">
+            <span class="submitted-label">Discord</span>
+            <span class="submitted-bracket">[ <span id="submittedDiscord"></span> ]</span>
+          </div>
+        </div>
         <p class="submitted-note">No changes can be made after submission.</p>
         <p class="success-message">Stay tuned for Team Secret updates</p>
       </div>
