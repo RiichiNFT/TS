@@ -76,7 +76,7 @@ function requestSignature(message, address) {
   });
 }
 
-function verifyConnectSignature(message, signature, expectedAddress) {
+function verifySignature(message, signature, expectedAddress) {
   if (!signature || typeof signature !== "string" || signature.length < 130) return false;
   if (!expectedAddress || !message) return false;
   if (typeof ethers !== "undefined" && ethers.verifyMessage) {
@@ -88,6 +88,10 @@ function verifyConnectSignature(message, signature, expectedAddress) {
     }
   }
   return true;
+}
+
+function verifyConnectSignature(message, signature, expectedAddress) {
+  return verifySignature(message, signature, expectedAddress);
 }
 
 const connectButton = document.getElementById("connectWallet");
@@ -353,6 +357,12 @@ function onComplete() {
   var message = buildRegistrationMessage(currentAddress, email, discord);
   requestSignature(message, currentAddress)
     .then(function (signature) {
+      if (!verifySignature(message, signature, currentAddress)) {
+        completeBtn.disabled = false;
+        completeBtn.textContent = "Complete";
+        emailError.textContent = "Signature verification failed. The signature does not match the submitted information. Please try again.";
+        return;
+      }
       completeBtn.textContent = "Saving…";
       sb.from(SUPABASE_TABLE)
         .select("email_address, discord_handle")
