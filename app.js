@@ -113,7 +113,9 @@ function showJoinedState(address) {
   connectBlock.classList.add("is-hidden");
   successSection.classList.add("is-hidden");
   formSection.classList.remove("is-hidden");
-  sublineEl.textContent = "Complete your details below.";
+  sublineEl.textContent = isSupabaseConfigured()
+    ? "Checking registration…"
+    : "Complete your details below.";
   if (sublineDbHint) {
     sublineDbHint.textContent = isSupabaseConfigured()
       ? ""
@@ -131,23 +133,38 @@ function showJoinedState(address) {
   loadPrefill(address);
 }
 
-function loadPrefill(address) {
+function loadExistingEntry(address, callback) {
   var sb = getSupabase();
-  if (!sb) return;
+  if (!sb) {
+    if (callback) callback(null);
+    return;
+  }
   sb.from(SUPABASE_TABLE)
     .select("email_address, discord_handle")
     .eq("wallet_address", normalizeAddress(address))
     .maybeSingle()
     .then(function (r) {
-      if (r.error) return;
-      if (r.data && r.data.email_address) {
+      if (r.error) {
+        if (callback) callback(null);
         return;
       }
-      if (r.data && (r.data.email_address || r.data.discord_handle)) {
-        if (r.data.email_address) emailInput.value = r.data.email_address;
-        if (r.data.discord_handle) discordInput.value = r.data.discord_handle;
-      }
+      if (callback) callback(r.data);
     });
+}
+
+function loadPrefill(address) {
+  loadExistingEntry(address, function (data) {
+    if (data && data.email_address) {
+      sublineEl.textContent = "You're already registered.";
+      showAlreadySubmitted(data.email_address, data.discord_handle || "");
+      return;
+    }
+    sublineEl.textContent = "Complete your details below.";
+    if (data && (data.email_address || data.discord_handle)) {
+      if (data.email_address) emailInput.value = data.email_address;
+      if (data.discord_handle) discordInput.value = data.discord_handle;
+    }
+  });
 }
 
 function showAlreadySubmitted(email, discord) {
