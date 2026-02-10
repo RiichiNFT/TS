@@ -37,6 +37,13 @@ Data is saved to your **Supabase** table **"TS Pass Claim"** when you configure 
 
 Data is also stored in the browser’s **localStorage** as a fallback and for pre-fill.
 
+**Database still empty?**
+
+- **Config empty:** If `config.js` has empty `SUPABASE_URL` and `SUPABASE_ANON_KEY`, nothing is sent to Supabase. The page will show “Database not configured” under the form and “Saved in this browser only” after Complete. Fill in your project URL and anon key in `config.js` (Supabase → Settings → API).
+- **Table name:** If your table in Supabase has a different name (e.g. `ts_pass_claim`), set `window.SUPABASE_TABLE` in `config.js` to that exact name (as shown in Supabase Table Editor).
+- **Row Level Security (RLS):** If RLS is enabled, add policies that allow the `anon` role to `INSERT` and `UPDATE` rows on your table (e.g. allow all for testing, or restrict by column later).
+- **Columns:** Ensure the table has columns `wallet_address`, `email`, and `discord_handle`. Names are case-sensitive in the API.
+
 ## Planned (next steps)
 
 - Wire frontend to Supabase or backend API so registrations are stored in a database

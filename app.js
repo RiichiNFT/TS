@@ -19,6 +19,10 @@ function getSupabase() {
   return _supabaseClient;
 }
 
+function isSupabaseConfigured() {
+  return !!(SUPABASE_URL && SUPABASE_ANON_KEY && typeof supabase !== "undefined");
+}
+
 function normalizeAddress(addr) {
   return (addr || "").trim().toLowerCase();
 }
@@ -37,6 +41,8 @@ const emailError = document.getElementById("emailError");
 const discordError = document.getElementById("discordError");
 const completeBtn = document.getElementById("completeBtn");
 const successSection = document.getElementById("successSection");
+const successDbHint = document.getElementById("successDbHint");
+const sublineDbHint = document.getElementById("sublineDbHint");
 
 let currentAddress = null;
 
@@ -90,6 +96,12 @@ function showJoinedState(address) {
   successSection.classList.add("is-hidden");
   formSection.classList.remove("is-hidden");
   sublineEl.textContent = "Complete your details below.";
+  if (sublineDbHint) {
+    sublineDbHint.textContent = isSupabaseConfigured()
+      ? ""
+      : "Database not configured — data will only be saved in this browser. Add SUPABASE_URL and SUPABASE_ANON_KEY in config.js to save to Supabase.";
+    sublineDbHint.classList.toggle("is-hidden", isSupabaseConfigured());
+  }
   emailError.textContent = "";
   discordError.textContent = "";
   emailInput.classList.remove("input-error");
@@ -123,6 +135,7 @@ function loadPrefill(address) {
 function showSuccess() {
   formSection.classList.add("is-hidden");
   successSection.classList.remove("is-hidden");
+  if (successDbHint) successDbHint.classList.add("is-hidden");
 }
 
 function validateEmail(value) {
@@ -177,7 +190,9 @@ async function connectWallet() {
             { onConflict: "wallet_address" }
           )
           .then(function (r) {
-            if (r.error) console.error("Supabase upsert on connect:", r.error);
+            if (r.error) {
+              console.error("Supabase upsert on connect:", r.error.message, r.error);
+            }
           });
       }
       try {
@@ -240,14 +255,26 @@ function onComplete() {
         completeBtn.disabled = false;
         completeBtn.textContent = "Complete";
         if (r.error) {
-          emailError.textContent = "Could not save. Check console or try again.";
+          var msg = r.error.message || "Could not save to database.";
+          if (r.error.code === "PGRST116") {
+            msg = "No row found for this wallet. Table name or columns may be wrong. Use table name from Supabase (e.g. ts_pass_claim).";
+          } else if (r.error.message && r.error.message.indexOf("row-level security") !== -1) {
+            msg = "Database rejected: Row Level Security. Allow insert/update for anon in Supabase.";
+          }
+          emailError.textContent = msg;
           console.error("Supabase update:", r.error);
           return;
         }
+        if (successDbHint) successDbHint.classList.add("is-hidden");
         saveAndShowSuccess(email, discord);
       });
   } else {
+    if (sublineDbHint) sublineDbHint.classList.add("is-hidden");
     saveAndShowSuccess(email, discord);
+    if (successDbHint) {
+      successDbHint.textContent = "Saved in this browser only. Add SUPABASE_URL and SUPABASE_ANON_KEY in config.js to save to your database.";
+      successDbHint.classList.remove("is-hidden");
+    }
   }
 }
 
@@ -259,6 +286,9 @@ function saveAndShowSuccess(email, discord) {
 }
 
 function init() {
+  if (!isSupabaseConfigured()) {
+    console.warn("TS Pass: Supabase not configured. Set window.SUPABASE_URL and window.SUPABASE_ANON_KEY in config.js to save to your database.");
+  }
   const provider = getProvider();
   if (provider) {
     provider.on("accountsChanged", (accounts) => {
