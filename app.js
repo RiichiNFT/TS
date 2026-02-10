@@ -195,7 +195,7 @@ function loadPrefill(address) {
 }
 
 function showAlreadySubmitted(email, discord) {
-  if (taglineEl) taglineEl.textContent = "You're already registered.";
+  if (taglineEl) taglineEl.textContent = "You have already submitted.";
   sublineEl.textContent = "";
   if (formEditable) formEditable.classList.add("is-hidden");
   if (alreadySubmittedSection) {
