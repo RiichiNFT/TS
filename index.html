@@ -45,17 +45,29 @@
 
     <div class="form-section is-hidden" id="formSection">
       <p class="wallet-hint subline-db-hint is-hidden" id="sublineDbHint"></p>
-      <div class="form-row">
-        <label for="emailInput">Email <span class="required">(mandatory)</span></label>
-        <input type="email" id="emailInput" class="input" placeholder="you@example.com" autocomplete="email" />
-        <span class="field-error" id="emailError" aria-live="polite"></span>
+      <div class="form-editable" id="formEditable">
+        <div class="form-row">
+          <label for="emailInput">Email <span class="required">(mandatory)</span></label>
+          <input type="email" id="emailInput" class="input" placeholder="you@example.com" autocomplete="email" />
+          <span class="field-error" id="emailError" aria-live="polite"></span>
+        </div>
+        <div class="form-row">
+          <label for="discordInput">Discord Handle <span class="optional">(optional)</span></label>
+          <input type="text" id="discordInput" class="input" placeholder="username#1234" autocomplete="off" />
+          <span class="field-error" id="discordError" aria-live="polite"></span>
+        </div>
+        <button type="button" class="btn-connect btn-complete" id="completeBtn">Complete</button>
       </div>
-      <div class="form-row">
-        <label for="discordInput">Discord Handle <span class="optional">(optional)</span></label>
-        <input type="text" id="discordInput" class="input" placeholder="username#1234" autocomplete="off" />
-        <span class="field-error" id="discordError" aria-live="polite"></span>
+      <div class="already-submitted is-hidden" id="alreadySubmittedSection">
+        <span class="success-check" aria-hidden="true">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </span>
+        <p class="success-message">You have already submitted.</p>
+        <p class="submitted-info"><strong>Email:</strong> <span id="submittedEmail"></span></p>
+        <p class="submitted-info"><strong>Discord:</strong> <span id="submittedDiscord"></span></p>
+        <p class="submitted-note">No changes can be made after submission.</p>
+        <p class="success-message">Stay tuned for Team Secret updates</p>
       </div>
-      <button type="button" class="btn-connect btn-complete" id="completeBtn">Complete</button>
     </div>
 
     <div class="success-section is-hidden" id="successSection">

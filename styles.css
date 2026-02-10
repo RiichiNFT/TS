@@ -408,6 +408,35 @@ body {
   max-width: 320px;
 }
 
+.already-submitted {
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.already-submitted .success-check {
+  margin-bottom: 4px;
+}
+
+.already-submitted .submitted-info {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text);
+  text-align: center;
+}
+
+.already-submitted .submitted-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 /* --- Footer / Socials --- */
 .footer {
   padding-top: 24px;
