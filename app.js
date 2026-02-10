@@ -1,9 +1,27 @@
 /**
  * Team Secret Inner Circle Pass — Connect, form, persistence.
  * Works with Base app (AA), MetaMask, Coinbase Wallet, and other EVM injectors.
+ * Data is stored in Supabase table "TS Pass Claim" (and in localStorage as fallback).
+ * Set SUPABASE_URL and SUPABASE_ANON_KEY in config.js.
  */
 
 const STORAGE_KEY = "ts-pass-registrations";
+
+var SUPABASE_URL = (typeof window !== "undefined" && window.SUPABASE_URL) || "";
+var SUPABASE_ANON_KEY = (typeof window !== "undefined" && window.SUPABASE_ANON_KEY) || "";
+var SUPABASE_TABLE = (typeof window !== "undefined" && window.SUPABASE_TABLE) || "TS Pass Claim";
+
+var _supabaseClient = null;
+
+function getSupabase() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || typeof supabase === "undefined") return null;
+  if (!_supabaseClient) _supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return _supabaseClient;
+}
+
+function normalizeAddress(addr) {
+  return (addr || "").trim().toLowerCase();
+}
 
 const connectButton = document.getElementById("connectWallet");
 const connectButtonText = document.getElementById("connectButtonText");
@@ -72,18 +90,34 @@ function showJoinedState(address) {
   successSection.classList.add("is-hidden");
   formSection.classList.remove("is-hidden");
   sublineEl.textContent = "Complete your details below.";
-  const prefill = loadSavedForAddress(address);
-  if (prefill) {
-    emailInput.value = prefill.email || "";
-    discordInput.value = prefill.discord || "";
-  } else {
-    emailInput.value = "";
-    discordInput.value = "";
-  }
   emailError.textContent = "";
   discordError.textContent = "";
   emailInput.classList.remove("input-error");
   discordInput.classList.remove("input-error");
+  emailInput.value = "";
+  discordInput.value = "";
+  loadPrefill(address);
+}
+
+function loadPrefill(address) {
+  const fromLocal = loadSavedForAddress(address);
+  if (fromLocal) {
+    emailInput.value = fromLocal.email || "";
+    discordInput.value = fromLocal.discord || "";
+  }
+  var sb = getSupabase();
+  if (!sb) return;
+  sb.from(SUPABASE_TABLE)
+    .select("email, discord_handle")
+    .eq("wallet_address", normalizeAddress(address))
+    .maybeSingle()
+    .then(function (r) {
+      if (r.error) return;
+      if (r.data && (r.data.email || r.data.discord_handle)) {
+        if (r.data.email) emailInput.value = r.data.email;
+        if (r.data.discord_handle) discordInput.value = r.data.discord_handle;
+      }
+    });
 }
 
 function showSuccess() {
@@ -135,6 +169,17 @@ async function connectWallet() {
       const address = accounts[0];
       showJoinedState(address);
       connectButtonText.textContent = "Connect";
+      var sb = getSupabase();
+      if (sb) {
+        sb.from(SUPABASE_TABLE)
+          .upsert(
+            { wallet_address: normalizeAddress(address) },
+            { onConflict: "wallet_address" }
+          )
+          .then(function (r) {
+            if (r.error) console.error("Supabase upsert on connect:", r.error);
+          });
+      }
       try {
         await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x2105" }] });
       } catch (_) {}
@@ -181,6 +226,32 @@ function onComplete() {
     return;
   }
 
+  var sb = getSupabase();
+  if (sb) {
+    completeBtn.disabled = true;
+    completeBtn.textContent = "Saving…";
+    sb.from(SUPABASE_TABLE)
+      .update({
+        email: email,
+        discord_handle: discord || null
+      })
+      .eq("wallet_address", normalizeAddress(currentAddress))
+      .then(function (r) {
+        completeBtn.disabled = false;
+        completeBtn.textContent = "Complete";
+        if (r.error) {
+          emailError.textContent = "Could not save. Check console or try again.";
+          console.error("Supabase update:", r.error);
+          return;
+        }
+        saveAndShowSuccess(email, discord);
+      });
+  } else {
+    saveAndShowSuccess(email, discord);
+  }
+}
+
+function saveAndShowSuccess(email, discord) {
   const reg = getRegistrations();
   reg[currentAddress] = { email: email, discord: discord };
   setRegistrations(reg);

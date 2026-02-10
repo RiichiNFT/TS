@@ -26,7 +26,17 @@ Then open the URL shown (e.g. http://localhost:3000 or http://localhost:8000).
 - Wallet connection via `window.ethereum` (EIP-1193)
 - Optional switch to Base mainnet after connect
 
+## Data storage (Supabase)
+
+Data is saved to your **Supabase** table **"TS Pass Claim"** when you configure it.
+
+1. Copy `config.js` and set your Supabase project URL and anon key:
+   - In **config.js**: set `window.SUPABASE_URL` (e.g. `https://xxxx.supabase.co`) and `window.SUPABASE_ANON_KEY` (from Supabase → Settings → API).
+2. **Table name:** The app uses the table name in `config.js` (`window.SUPABASE_TABLE`). Default is `"TS Pass Claim"`. If your table has a different name (e.g. `ts_pass_claim`), set `window.SUPABASE_TABLE` to that name.
+3. **Expected columns:** `wallet_address` (text, unique), `email` (text, nullable), `discord_handle` (text, nullable). On connect we upsert a row by `wallet_address`; on Complete we update `email` and `discord_handle` for that row.
+
+Data is also stored in the browser’s **localStorage** as a fallback and for pre-fill.
+
 ## Planned (next steps)
 
-- Form for social handles and email (editable only after wallet is connected)
-- Backend/API for storing registrations
+- Wire frontend to Supabase or backend API so registrations are stored in a database
