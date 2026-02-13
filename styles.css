@@ -78,6 +78,19 @@ body {
   display: none !important;
 }
 
+/* Transition classes — used for animated show/hide */
+.fade-section {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.fade-section.fade-out {
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+}
+
 /* --- Wallet address (top right) --- */
 .wallet-address {
   position: fixed;
@@ -295,6 +308,56 @@ body {
   align-items: center;
 }
 
+.mobile-link-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  width: 100%;
+  max-width: 260px;
+}
+
+.btn-mobile-wallet {
+  display: block;
+  padding: 12px 16px;
+  font-family: var(--font);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  text-decoration: none;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.btn-mobile-wallet:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* --- Spinner --- */
+.spinner-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0;
+}
+
+.spinner {
+  display: block;
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--white);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* --- Form --- */
 .form-section {
   width: 100%;
@@ -458,6 +521,82 @@ body {
   font-size: 0.85rem;
   color: var(--text-muted);
   font-style: italic;
+}
+
+/* --- Modal --- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  padding: 24px;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 380px;
+  padding: 28px 24px 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.modal-title {
+  margin: 0 0 12px;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.modal-body {
+  margin: 0 0 24px;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.modal-btn {
+  flex: 1;
+  padding: 12px 16px;
+  font-family: var(--font);
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.modal-btn--primary {
+  color: var(--white);
+  background: var(--bg);
+  border-color: var(--white);
+}
+
+.modal-btn--primary:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.modal-btn--secondary {
+  color: var(--text-muted);
+  background: transparent;
+  border-color: var(--border);
+}
+
+.modal-btn--secondary:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* --- Footer / Socials --- */

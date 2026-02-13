@@ -14,6 +14,8 @@
 var SUPABASE_URL = (typeof window !== "undefined" && window.SUPABASE_URL) || "";
 var SUPABASE_ANON_KEY = (typeof window !== "undefined" && window.SUPABASE_ANON_KEY) || "";
 var SUPABASE_TABLE = (typeof window !== "undefined" && window.SUPABASE_TABLE) || "TS Pass Claim";
+var EDGE_FUNCTION_URL = (typeof window !== "undefined" && window.EDGE_FUNCTION_URL) || "";
+var TAGLINE_DEFAULT = "The Inner Circle awaits...";
 
 var _supabaseClient = null;
 
@@ -31,24 +33,26 @@ function normalizeAddress(addr) {
   return (addr || "").trim().toLowerCase();
 }
 
-function buildConnectAuthMessage(address) {
+function buildConnectAuthMessage(address, nonce) {
   var ts = new Date().toISOString();
-  return (
-    "Sign in to Team Secret Inner Circle\n\n" +
+  var msg = "Sign in to Team Secret Inner Circle\n\n" +
     "Wallet: " + address + "\n\n" +
-    "This request will not trigger a blockchain transaction or cost any gas.\nTimestamp: " + ts
-  );
+    "This request will not trigger a blockchain transaction or cost any gas.\n";
+  if (nonce) msg += "Nonce: " + nonce + "\n";
+  msg += "Timestamp: " + ts;
+  return msg;
 }
 
-function buildRegistrationMessage(wallet, email, discord) {
+function buildRegistrationMessage(wallet, email, discord, nonce) {
   var ts = new Date().toISOString();
-  return (
-    "Team Secret Inner Circle Registration\n\n" +
+  var msg = "Team Secret Inner Circle Registration\n\n" +
     "Wallet: " + wallet + "\n" +
     "Email: " + email + "\n" +
     "Discord: " + (discord || "(none)") + "\n\n" +
-    "I confirm this information is correct.\nTimestamp: " + ts
-  );
+    "I confirm this information is correct.\n";
+  if (nonce) msg += "Nonce: " + nonce + "\n";
+  msg += "Timestamp: " + ts;
+  return msg;
 }
 
 function stringToHex(s) {
@@ -94,6 +98,66 @@ function verifyConnectSignature(message, signature, expectedAddress) {
   return verifySignature(message, signature, expectedAddress);
 }
 
+/* --- Modal helpers --- */
+const modalOverlay = document.getElementById("modalOverlay");
+const modalTitle = document.getElementById("modalTitle");
+const modalBody = document.getElementById("modalBody");
+const modalActions = document.getElementById("modalActions");
+
+function showModal(title, body, buttons) {
+  return new Promise(function (resolve) {
+    modalTitle.textContent = title;
+    modalBody.textContent = body;
+    modalActions.innerHTML = "";
+    buttons.forEach(function (b) {
+      var btn = document.createElement("button");
+      btn.className = "modal-btn " + (b.primary ? "modal-btn--primary" : "modal-btn--secondary");
+      btn.textContent = b.label;
+      btn.addEventListener("click", function () {
+        modalOverlay.classList.add("is-hidden");
+        resolve(b.value);
+      });
+      modalActions.appendChild(btn);
+    });
+    modalOverlay.classList.remove("is-hidden");
+  });
+}
+
+function showAlert(title, body) {
+  return showModal(title, body, [{ label: "OK", value: true, primary: true }]);
+}
+
+function showConfirm(title, body) {
+  return showModal(title, body, [
+    { label: "Cancel", value: false, primary: false },
+    { label: "Confirm", value: true, primary: true }
+  ]);
+}
+
+/* --- Animated show/hide for .fade-section elements --- */
+function fadeIn(el) {
+  if (!el) return;
+  el.classList.remove("is-hidden");
+  // Force reflow so the transition plays from the hidden state
+  void el.offsetWidth;
+  el.classList.remove("fade-out");
+}
+
+function fadeOut(el, cb) {
+  if (!el) return;
+  if (el.classList.contains("is-hidden")) { if (cb) cb(); return; }
+  el.classList.add("fade-out");
+  var onEnd = function () {
+    el.removeEventListener("transitionend", onEnd);
+    el.classList.add("is-hidden");
+    el.classList.remove("fade-out");
+    if (cb) cb();
+  };
+  el.addEventListener("transitionend", onEnd, { once: true });
+  // Fallback in case transitionend doesn't fire
+  setTimeout(function () { el.removeEventListener("transitionend", onEnd); onEnd(); }, 350);
+}
+
 const connectButton = document.getElementById("connectWallet");
 const connectButtonText = document.getElementById("connectButtonText");
 const walletAddressEl = document.getElementById("walletAddress");
@@ -113,10 +177,37 @@ const successDbHint = document.getElementById("successDbHint");
 const sublineDbHint = document.getElementById("sublineDbHint");
 const formEditable = document.getElementById("formEditable");
 const alreadySubmittedSection = document.getElementById("alreadySubmittedSection");
+const submittedWalletEl = document.getElementById("submittedWallet");
 const submittedEmailEl = document.getElementById("submittedEmail");
 const submittedDiscordEl = document.getElementById("submittedDiscord");
+const spinnerWrap = document.getElementById("spinnerWrap");
 
 let currentAddress = null;
+let _connectCooldownUntil = 0;
+let _completeCooldownUntil = 0;
+var COOLDOWN_MS = 3000;
+
+function startCooldown(btn, originalText, which) {
+  var until = Date.now() + COOLDOWN_MS;
+  if (which === "connect") _connectCooldownUntil = until;
+  else _completeCooldownUntil = until;
+  btn.disabled = true;
+  var tick = function () {
+    var left = Math.ceil((until - Date.now()) / 1000);
+    if (left <= 0) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+      return;
+    }
+    btn.textContent = "Retry in " + left + "s…";
+    setTimeout(tick, 300);
+  };
+  tick();
+}
+
+function isOnCooldown(which) {
+  return Date.now() < (which === "connect" ? _connectCooldownUntil : _completeCooldownUntil);
+}
 
 function getProvider() {
   if (typeof window === "undefined") return null;
@@ -128,19 +219,15 @@ function formatAddress(address) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
-function showConnectState() {
-  clearAllWalletState();
-}
-
 function showJoinedState(address) {
   currentAddress = address;
   if (taglineEl) taglineEl.textContent = TAGLINE_DEFAULT;
   const short = formatAddress(address);
   if (walletAddressText) walletAddressText.textContent = short;
   walletAddressEl.classList.remove("is-hidden");
-  connectBlock.classList.add("is-hidden");
-  successSection.classList.add("is-hidden");
-  formSection.classList.remove("is-hidden");
+  fadeOut(connectBlock);
+  fadeOut(successSection);
+  fadeIn(formSection);
   sublineEl.textContent = isSupabaseConfigured()
     ? "Checking registration…"
     : "Complete your details below.";
@@ -156,8 +243,9 @@ function showJoinedState(address) {
   discordInput.classList.remove("input-error");
   emailInput.value = "";
   discordInput.value = "";
-  if (formEditable) formEditable.classList.remove("is-hidden");
+  if (formEditable) formEditable.classList.add("is-hidden");
   if (alreadySubmittedSection) alreadySubmittedSection.classList.add("is-hidden");
+  if (spinnerWrap) spinnerWrap.classList.remove("is-hidden");
   loadPrefill(address);
 }
 
@@ -182,11 +270,13 @@ function loadExistingEntry(address, callback) {
 
 function loadPrefill(address) {
   loadExistingEntry(address, function (data) {
+    if (spinnerWrap) spinnerWrap.classList.add("is-hidden");
     if (data && data.email_address) {
       showAlreadySubmitted(data.email_address, data.discord_handle || "");
       return;
     }
     sublineEl.textContent = "Complete your details below.";
+    if (formEditable) formEditable.classList.remove("is-hidden");
     if (data && (data.email_address || data.discord_handle)) {
       if (data.email_address) emailInput.value = data.email_address;
       if (data.discord_handle) discordInput.value = data.discord_handle;
@@ -199,6 +289,7 @@ function showAlreadySubmitted(email, discord) {
   sublineEl.textContent = "";
   if (formEditable) formEditable.classList.add("is-hidden");
   if (alreadySubmittedSection) {
+    if (submittedWalletEl) submittedWalletEl.textContent = formatAddress(currentAddress);
     if (submittedEmailEl) submittedEmailEl.textContent = email;
     if (submittedDiscordEl) submittedDiscordEl.textContent = discord || "—";
     alreadySubmittedSection.classList.remove("is-hidden");
@@ -238,60 +329,107 @@ function validateDiscord(value) {
   return null;
 }
 
-function checkDuplicateEmailInSupabase(email, excludeWalletAddress, callback) {
+async function checkDuplicateEmail(email, excludeWalletAddress) {
   var sb = getSupabase();
-  if (!sb) {
-    callback(false);
-    return;
-  }
+  if (!sb) return false;
   var normalized = (email || "").trim().toLowerCase();
   var currentNorm = normalizeAddress(excludeWalletAddress);
-  sb.from(SUPABASE_TABLE)
-    .select("wallet_address")
-    .eq("email_address", normalized)
-    .then(function (r) {
-      if (r.error || !r.data) {
-        callback(false);
-        return;
-      }
-      var anotherWalletHasEmail = r.data.some(function (row) {
-        return ((row.wallet_address || "").toLowerCase() !== currentNorm);
-      });
-      callback(anotherWalletHasEmail);
-    });
+  var r = await sb.from(SUPABASE_TABLE).select("wallet_address").eq("email_address", normalized);
+  if (r.error || !r.data) return false;
+  return r.data.some(function (row) {
+    return (row.wallet_address || "").toLowerCase() !== currentNorm;
+  });
 }
 
-function checkDuplicateDiscordInSupabase(discord, excludeWalletAddress, callback) {
+async function checkDuplicateDiscord(discord, excludeWalletAddress) {
   var sb = getSupabase();
-  if (!sb) {
-    callback(false);
-    return;
-  }
+  if (!sb) return false;
   var normalized = (discord || "").trim();
-  if (!normalized) {
-    callback(false);
-    return;
-  }
+  if (!normalized) return false;
   var currentNorm = normalizeAddress(excludeWalletAddress);
-  sb.from(SUPABASE_TABLE)
-    .select("wallet_address")
-    .eq("discord_handle", normalized)
-    .then(function (r) {
-      if (r.error || !r.data) {
-        callback(false);
-        return;
-      }
-      var anotherWalletHasDiscord = r.data.some(function (row) {
-        return (row.wallet_address || "").toLowerCase() !== currentNorm;
-      });
-      callback(anotherWalletHasDiscord);
-    });
+  var r = await sb.from(SUPABASE_TABLE).select("wallet_address").eq("discord_handle", normalized);
+  if (r.error || !r.data) return false;
+  return r.data.some(function (row) {
+    return (row.wallet_address || "").toLowerCase() !== currentNorm;
+  });
+}
+
+async function fetchNonce(address) {
+  var sb = getSupabase();
+  if (!sb) return null;
+  var r = await sb.rpc("generate_nonce", { p_wallet: normalizeAddress(address) });
+  if (r.error || !r.data) return null;
+  return r.data;
+}
+
+async function saveViaEdgeFunction(address, email, discord, message, signature) {
+  var res = await fetch(EDGE_FUNCTION_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      wallet_address: normalizeAddress(address),
+      email: email,
+      discord: discord || "",
+      message: message,
+      signature: signature
+    })
+  });
+  var body = await res.json();
+  if (!res.ok) {
+    var err = new Error(body.error || "Registration failed.");
+    err.field = body.field || null;
+    throw err;
+  }
+  return body;
+}
+
+async function saveViaDirectSupabase(address, email, discord, signature) {
+  var sb = getSupabase();
+  if (!sb) throw new Error("Database not configured.");
+  var walletNorm = normalizeAddress(address);
+
+  var existing = await sb.from(SUPABASE_TABLE)
+    .select("email_address, discord_handle")
+    .eq("wallet_address", walletNorm)
+    .maybeSingle();
+
+  if (existing.data && existing.data.email_address) {
+    var upd = await sb.from(SUPABASE_TABLE)
+      .update({ signature: signature || null })
+      .eq("wallet_address", walletNorm);
+    if (upd.error) throw new Error(upd.error.message || "Could not update.");
+    return { alreadyExisted: true, email: existing.data.email_address, discord: existing.data.discord_handle || "" };
+  }
+
+  var payload = {
+    wallet_address: walletNorm,
+    email_address: email,
+    discord_handle: discord || null,
+    signature: signature || null
+  };
+
+  var res = await sb.from(SUPABASE_TABLE).upsert(payload, { onConflict: "wallet_address" });
+  if (res.error) {
+    var isNoConstraint = (res.error.message || "").indexOf("no unique or exclusion constraint") !== -1;
+    if (isNoConstraint) {
+      var ins = await sb.from(SUPABASE_TABLE).insert(payload);
+      if (ins.error) throw new Error(ins.error.message || "Could not save to database.");
+      return { alreadyExisted: false, email: email, discord: discord };
+    }
+    var msg = res.error.message || "Could not save to database.";
+    if (res.error.message && res.error.message.indexOf("row-level security") !== -1) {
+      msg = "Database rejected: Row Level Security. Allow insert/update for anon in Supabase.";
+    }
+    throw new Error(msg);
+  }
+  return { alreadyExisted: false, email: email, discord: discord };
 }
 
 async function connectWallet() {
+  if (isOnCooldown("connect")) return;
   const provider = getProvider();
   if (!provider) {
-    alert("No wallet found. Install MetaMask, Coinbase Wallet, or open this page in the Base app to connect.");
+    await showAlert("No Wallet Found", "Install MetaMask, Coinbase Wallet, or open this page in the Base app to connect.");
     return;
   }
   try {
@@ -303,20 +441,26 @@ async function connectWallet() {
       return;
     }
     const address = accounts[0];
+    connectButtonText.textContent = "Preparing…";
+    var connectNonce = await fetchNonce(address);
     connectButtonText.textContent = "Sign message…";
-    var authMessage = buildConnectAuthMessage(address);
+    var authMessage = buildConnectAuthMessage(address, connectNonce);
     var signature;
     try {
       signature = await requestSignature(authMessage, address);
     } catch (signErr) {
-      connectButtonText.textContent = "Connect";
-      if (signErr && signErr.code === 4001) return;
-      alert("Signature is required to continue. Please sign the message in your wallet.");
+      if (signErr && signErr.code === 4001) {
+        connectButton.disabled = false;
+        connectButtonText.textContent = "Connect";
+        return;
+      }
+      startCooldown(connectButton, "Connect", "connect");
+      await showAlert("Signature Required", "Please sign the message in your wallet to continue.");
       return;
     }
     if (!verifyConnectSignature(authMessage, signature, address)) {
-      connectButtonText.textContent = "Connect";
-      alert("Verification failed. Please try again.");
+      startCooldown(connectButton, "Connect", "connect");
+      await showAlert("Verification Failed", "The signature could not be verified. Please try again.");
       return;
     }
     showJoinedState(address);
@@ -326,36 +470,35 @@ async function connectWallet() {
     } catch (_) {}
   } catch (err) {
     console.error(err);
-    connectButtonText.textContent = "Connect";
-    if (err.code === 4001) return;
-    alert("Connection failed. Try again or use another wallet.");
-  } finally {
-    connectButton.disabled = false;
+    if (err.code === 4001) {
+      connectButton.disabled = false;
+      connectButtonText.textContent = "Connect";
+      return;
+    }
+    startCooldown(connectButton, "Connect", "connect");
+    await showAlert("Connection Failed", "Could not connect. Try again or use another wallet.");
   }
 }
 
-var TAGLINE_DEFAULT = "The Inner Circle awaits...";
-
-function clearAllWalletState() {
+function resetToConnectState() {
   currentAddress = null;
   walletAddressEl.classList.add("is-hidden");
-  connectBlock.classList.remove("is-hidden");
-  formSection.classList.add("is-hidden");
-  successSection.classList.add("is-hidden");
+  fadeIn(connectBlock);
+  fadeOut(formSection);
+  fadeOut(successSection);
   if (alreadySubmittedSection) alreadySubmittedSection.classList.add("is-hidden");
   if (formEditable) formEditable.classList.remove("is-hidden");
+  if (spinnerWrap) spinnerWrap.classList.add("is-hidden");
   if (taglineEl) taglineEl.textContent = TAGLINE_DEFAULT;
   sublineEl.textContent = "Connect your wallet to get started";
   connectButton.classList.remove("connected");
   connectButtonText.textContent = "Connect";
 }
 
-function onDisconnect() {
-  clearAllWalletState();
-}
-
-function onComplete() {
-  if (!confirm("Once you submit, you will not be able to change this information. Are you sure you want to continue?")) {
+async function onComplete() {
+  if (isOnCooldown("complete")) return;
+  var confirmed = await showConfirm("Confirm Submission", "Once you submit, you will not be able to change this information. Are you sure you want to continue?");
+  if (!confirmed) {
     return;
   }
   var emailRaw = emailInput.value;
@@ -379,126 +522,122 @@ function onComplete() {
     discordInput.classList.add("input-error");
     return;
   }
-  var sb = getSupabase();
-  if (!sb) {
+  if (!getSupabase()) {
     emailError.textContent = "Database not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY in config.js.";
     return;
   }
 
   completeBtn.disabled = true;
   completeBtn.textContent = "Checking…";
-  checkDuplicateEmailInSupabase(email, currentAddress, function (isEmailDuplicate) {
-    if (isEmailDuplicate) {
-      completeBtn.disabled = false;
-      completeBtn.textContent = "Complete";
-      emailError.textContent = "This email is already registered.";
-      emailInput.classList.add("input-error");
-      return;
-    }
-    checkDuplicateDiscordInSupabase(discord, currentAddress, function (isDiscordDuplicate) {
-      if (isDiscordDuplicate) {
-        completeBtn.disabled = false;
-        completeBtn.textContent = "Complete";
+
+  try {
+    var results = await Promise.all([
+      checkDuplicateEmail(email, currentAddress),
+      checkDuplicateDiscord(discord, currentAddress)
+    ]);
+    var isEmailDup = results[0];
+    var isDiscordDup = results[1];
+    if (isEmailDup || isDiscordDup) {
+      if (isEmailDup) {
+        emailError.textContent = "This email is already registered.";
+        emailInput.classList.add("input-error");
+      }
+      if (isDiscordDup) {
         discordError.textContent = "This Discord handle is already registered.";
         discordInput.classList.add("input-error");
-        return;
       }
-      completeBtn.textContent = "Sign in wallet…";
-      var message = buildRegistrationMessage(currentAddress, email, discord);
-      requestSignature(message, currentAddress)
-        .then(function (signature) {
-          if (!verifySignature(message, signature, currentAddress)) {
-            completeBtn.disabled = false;
-            completeBtn.textContent = "Complete";
-            emailError.textContent = "Signature verification failed. The signature does not match the submitted information. Please try again.";
-            return;
-          }
-          completeBtn.textContent = "Saving…";
-          sb.from(SUPABASE_TABLE)
-            .select("email_address, discord_handle")
-            .eq("wallet_address", normalizeAddress(currentAddress))
-            .maybeSingle()
-            .then(function (existing) {
-              if (existing.data && existing.data.email_address) {
-                sb.from(SUPABASE_TABLE)
-                  .update({ signature: signature || null })
-                  .eq("wallet_address", normalizeAddress(currentAddress))
-                  .then(function (r) {
-                    completeBtn.disabled = false;
-                    completeBtn.textContent = "Complete";
-                    if (r.error) {
-                      emailError.textContent = r.error.message || "Could not update.";
-                      return;
-                    }
-                    if (successDbHint) successDbHint.classList.add("is-hidden");
-                    showAlreadySubmitted(existing.data.email_address, existing.data.discord_handle || "");
-                  });
-                return;
-              }
-              var payload = {
-                wallet_address: normalizeAddress(currentAddress),
-                email_address: email,
-                discord_handle: discord || null,
-                signature: signature || null
-              };
-              sb.from(SUPABASE_TABLE)
-                .upsert(payload, { onConflict: "wallet_address" })
-                .then(function (r) {
-                  completeBtn.disabled = false;
-                  completeBtn.textContent = "Complete";
-                  if (r.error) {
-                    var isNoConstraint = (r.error.message || "").indexOf("no unique or exclusion constraint") !== -1;
-                    if (isNoConstraint) {
-                      sb.from(SUPABASE_TABLE).insert(payload).then(function (r2) {
-                        completeBtn.disabled = false;
-                        completeBtn.textContent = "Complete";
-                        if (r2.error) {
-                          emailError.textContent = r2.error.message || "Could not save to database.";
-                          console.error("Supabase insert:", r2.error);
-                          return;
-                        }
-                        if (successDbHint) successDbHint.classList.add("is-hidden");
-                        showAlreadySubmitted(email, discord);
-                      });
-                      return;
-                    }
-                    var msg = r.error.message || "Could not save to database.";
-                    if (r.error.message && r.error.message.indexOf("row-level security") !== -1) {
-                      msg = "Database rejected: Row Level Security. Allow insert/update for anon in Supabase.";
-                    }
-                    emailError.textContent = msg;
-                    console.error("Supabase upsert:", r.error);
-                    return;
-                  }
-                  if (successDbHint) successDbHint.classList.add("is-hidden");
-                  showAlreadySubmitted(email, discord);
-                });
-            });
-          });
-        });
-    })
-    .catch(function (err) {
       completeBtn.disabled = false;
       completeBtn.textContent = "Complete";
-      if (err && err.code === 4001) {
+      return;
+    }
+
+    completeBtn.textContent = "Preparing…";
+    var nonce = await fetchNonce(currentAddress);
+
+    completeBtn.textContent = "Sign in wallet…";
+    var message = buildRegistrationMessage(currentAddress, email, discord, nonce);
+    var signature;
+    try {
+      signature = await requestSignature(message, currentAddress);
+    } catch (signErr) {
+      completeBtn.disabled = false;
+      completeBtn.textContent = "Complete";
+      if (signErr && signErr.code === 4001) {
         emailError.textContent = "Signature cancelled. Please try again when ready.";
       } else {
         emailError.textContent = "Signature failed. Please try again.";
-        if (err) console.error("personal_sign:", err);
+        if (signErr) console.error("personal_sign:", signErr);
       }
-    });
+      return;
+    }
+
+    if (!verifySignature(message, signature, currentAddress)) {
+      completeBtn.disabled = false;
+      completeBtn.textContent = "Complete";
+      emailError.textContent = "Signature verification failed. The signature does not match the submitted information. Please try again.";
+      return;
+    }
+
+    completeBtn.textContent = "Saving…";
+    var result;
+    if (EDGE_FUNCTION_URL) {
+      result = await saveViaEdgeFunction(currentAddress, email, discord, message, signature);
+    } else {
+      result = await saveViaDirectSupabase(currentAddress, email, discord, signature);
+    }
+    if (successDbHint) successDbHint.classList.add("is-hidden");
+    showAlreadySubmitted(result.email, result.discord);
+  } catch (err) {
+    if (err && err.field === "email") {
+      emailError.textContent = err.message;
+      emailInput.classList.add("input-error");
+    } else if (err && err.field === "discord") {
+      discordError.textContent = err.message;
+      discordInput.classList.add("input-error");
+    } else {
+      emailError.textContent = (err && err.message) || "An error occurred. Please try again.";
+    }
+    startCooldown(completeBtn, "Complete", "complete");
+    console.error("onComplete:", err);
+    return;
+  }
+  completeBtn.disabled = false;
+  completeBtn.textContent = "Complete";
+}
+
+function isMobile() {
+  return /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+function setupMobileDeepLinks() {
+  if (!isMobile() || getProvider()) return;
+  var mobileWalletLinks = document.getElementById("mobileWalletLinks");
+  var metamaskLink = document.getElementById("metamaskDeepLink");
+  var coinbaseLink = document.getElementById("coinbaseDeepLink");
+  if (!mobileWalletLinks) return;
+
+  var dappUrl = window.location.host + window.location.pathname;
+  if (metamaskLink) metamaskLink.href = "https://metamask.app.link/dapp/" + dappUrl;
+  if (coinbaseLink) coinbaseLink.href = "https://go.cb-w.com/dapp?cb_url=" + encodeURIComponent(window.location.href);
+
+  mobileWalletLinks.classList.remove("is-hidden");
+}
+
+function onDisconnect() {
+  resetToConnectState();
 }
 
 function init() {
   if (!isSupabaseConfigured()) {
     console.warn("TS Pass: Supabase not configured. Set window.SUPABASE_URL and window.SUPABASE_ANON_KEY in config.js to save to your database.");
   }
-  clearAllWalletState();
+  resetToConnectState();
+  setupMobileDeepLinks();
 
   const provider = getProvider();
   if (provider) {
     provider.on("accountsChanged", function (accounts) {
-      showConnectState();
+      resetToConnectState();
     });
   }
 

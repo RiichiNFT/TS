@@ -31,7 +31,7 @@
     <p class="tagline" id="tagline">The Inner Circle awaits...</p>
     <p class="subline" id="subline">Connect your wallet to get started</p>
 
-    <div class="connect-block" id="connectBlock">
+    <div class="connect-block fade-section" id="connectBlock">
       <button type="button" class="btn-connect" id="connectWallet" aria-label="Connect wallet">
         <span class="btn-connect__icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -41,9 +41,19 @@
         <span class="btn-connect__text" id="connectButtonText">Connect</span>
       </button>
       <p class="wallet-hint">Works with Base, MetaMask, Coinbase Wallet & other EVM wallets</p>
+      <div class="mobile-wallet-links is-hidden" id="mobileWalletLinks">
+        <p class="wallet-hint" style="margin-top:12px">No wallet detected. Open this page in a wallet app:</p>
+        <div class="mobile-link-row">
+          <a class="btn-mobile-wallet" id="metamaskDeepLink" href="#" target="_blank" rel="noopener noreferrer">Open in MetaMask</a>
+          <a class="btn-mobile-wallet" id="coinbaseDeepLink" href="#" target="_blank" rel="noopener noreferrer">Open in Coinbase Wallet</a>
+        </div>
+      </div>
     </div>
 
-    <div class="form-section is-hidden" id="formSection">
+    <div class="form-section fade-section is-hidden" id="formSection">
+      <div class="spinner-wrap is-hidden" id="spinnerWrap">
+        <span class="spinner" aria-label="Loading"></span>
+      </div>
       <p class="wallet-hint subline-db-hint is-hidden" id="sublineDbHint"></p>
       <div class="form-editable" id="formEditable">
         <div class="form-row">
@@ -53,7 +63,7 @@
         </div>
         <div class="form-row">
           <label for="discordInput">Discord Handle <span class="optional">(optional)</span></label>
-          <input type="text" id="discordInput" class="input" placeholder="username#1234" autocomplete="off" />
+          <input type="text" id="discordInput" class="input" placeholder="username" autocomplete="off" />
           <span class="field-error" id="discordError" aria-live="polite"></span>
         </div>
         <button type="button" class="btn-connect btn-complete" id="completeBtn">Complete</button>
@@ -63,6 +73,10 @@
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
         </span>
         <div class="submitted-rows">
+          <div class="submitted-row">
+            <span class="submitted-label">Wallet</span>
+            <span class="submitted-bracket">[ <span id="submittedWallet"></span> ]</span>
+          </div>
           <div class="submitted-row">
             <span class="submitted-label">Email</span>
             <span class="submitted-bracket">[ <span id="submittedEmail"></span> ]</span>
@@ -77,7 +91,7 @@
       </div>
     </div>
 
-    <div class="success-section is-hidden" id="successSection">
+    <div class="success-section fade-section is-hidden" id="successSection">
       <span class="success-check" aria-hidden="true">
         <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
       </span>
@@ -109,6 +123,15 @@
       Powered by CHECK
     </p>
   </footer>
+
+  <!-- Modal -->
+  <div class="modal-overlay is-hidden" id="modalOverlay">
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <p class="modal-title" id="modalTitle"></p>
+      <p class="modal-body" id="modalBody"></p>
+      <div class="modal-actions" id="modalActions"></div>
+    </div>
+  </div>
 
   <script src="config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js" crossorigin="anonymous"></script>
