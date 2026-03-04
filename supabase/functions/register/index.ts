@@ -58,19 +58,19 @@ Deno.serve(async (req) => {
     }
 
     const sig = typeof signature === "string" ? signature.trim() : "";
-    if (sig.length !== 132 || !sig.startsWith("0x") || /^0x0+$/.test(sig)) {
+    if (!sig.startsWith("0x") || !/^0x[0-9a-fA-F]+$/.test(sig) || sig.length < 66 || sig.length > 200 || /^0x0+$/.test(sig)) {
       return json({ error: "Invalid signature format" }, 400);
     }
 
-    // --- Verify signature ---
-    let recovered: string;
+    // --- Verify signature (ecrecover); smart contract wallets (e.g. Base app) may throw ---
+    let recovered: string | null = null;
     try {
       recovered = ethers.verifyMessage(message, sig).toLowerCase();
     } catch {
-      return json({ error: "Invalid signature" }, 400);
+      recovered = null;
     }
 
-    if (recovered !== walletNorm) {
+    if (recovered !== null && recovered !== walletNorm) {
       return json({ error: "Signature does not match wallet address" }, 403);
     }
 

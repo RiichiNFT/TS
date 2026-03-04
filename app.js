@@ -81,37 +81,61 @@ function requestSignature(message, address) {
 }
 
 function normalizeSignature(raw) {
-  if (!raw) return null;
+  if (raw == null) return null;
+
   if (typeof raw === "string") {
     var s = raw.trim();
-    if (!s.startsWith("0x")) return null;
-    if (s.length !== 132) return null;
-    if (/^0x0+$/.test(s)) return null;
-    return s;
+    if (!/^[0-9a-fA-Fx]+$/.test(s)) return null;
+    if (s.startsWith("0x")) s = s.slice(2);
+    if (s.length < 64 || s.length > 198) return null;
+    if (/^0+$/.test(s)) return null;
+    return "0x" + s;
   }
-  if (typeof raw === "object" && raw !== null && "r" in raw && "s" in raw && "v" in raw) {
+
+  if (typeof raw === "object") {
+    if (raw.signature != null) {
+      var out = normalizeSignature(raw.signature);
+      if (out) return out;
+    }
+    if (Array.isArray(raw) && raw.length > 0) {
+      var first = raw[0];
+      if (typeof first === "string") return normalizeSignature(first);
+      if (first && typeof first === "object" && first.signature) return normalizeSignature(first.signature);
+    }
     try {
+      var r = raw.r, s = raw.s, v = raw.v;
+      if (raw.yParity !== undefined && (v === undefined || v === null)) v = raw.yParity === 1 || raw.yParity === "1" ? 28 : 27;
+      if (r != null && s != null && v != null) {
+        var rHex = typeof r === "string" ? (r.startsWith("0x") ? r.slice(2) : r) : (typeof r === "bigint" ? r.toString(16) : String(r));
+        var sHex = typeof s === "string" ? (s.startsWith("0x") ? s.slice(2) : s) : (typeof s === "bigint" ? s.toString(16) : String(s));
+        var vNum = typeof v === "number" ? v : (typeof v === "bigint" ? Number(v) : parseInt(String(v), 16));
+        if (vNum === 0 || vNum === 1) vNum += 27;
+        var vHex = vNum.toString(16).padStart(2, "0");
+        var hex = "0x" + rHex.padStart(64, "0") + sHex.padStart(64, "0") + vHex;
+        if (hex.length === 132 && !/^0x0+$/.test(hex)) return hex;
+      }
       if (typeof ethers !== "undefined" && ethers.Signature && ethers.Signature.from) {
-        var sig = ethers.Signature.from({ r: raw.r, s: raw.s, v: raw.v });
+        var sig = ethers.Signature.from(raw);
         var hex = sig.serialized;
-        if (hex && hex.length === 132 && !/^0x0+$/.test(hex)) return hex;
+        if (hex && hex.length >= 66 && !/^0x0+$/.test(hex)) return hex;
       }
     } catch (e) {
       return null;
     }
   }
+
   return null;
 }
 
 function verifySignature(message, signature, expectedAddress) {
-  if (!signature || typeof signature !== "string" || signature.length < 130) return false;
+  if (!signature || typeof signature !== "string" || signature.length < 66) return false;
   if (!expectedAddress || !message) return false;
   if (typeof ethers !== "undefined" && ethers.verifyMessage) {
     try {
       var recovered = ethers.verifyMessage(message, signature);
       if (recovered && normalizeAddress(recovered) === normalizeAddress(expectedAddress)) return true;
     } catch (e) {
-      /* ecrecover throws for some smart contract wallets */
+      /* ecrecover throws for some smart contract wallets (e.g. Base app) */
     }
   }
   return true;
