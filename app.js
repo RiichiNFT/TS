@@ -86,10 +86,9 @@ function verifySignature(message, signature, expectedAddress) {
   if (typeof ethers !== "undefined" && ethers.verifyMessage) {
     try {
       var recovered = ethers.verifyMessage(message, signature);
-      return recovered ? normalizeAddress(recovered) === normalizeAddress(expectedAddress) : false;
+      if (recovered && normalizeAddress(recovered) === normalizeAddress(expectedAddress)) return true;
     } catch (e) {
-      /* ecrecover fails for smart contract wallets (Base app, Safe, etc.). Trust the wallet: it returned a signature for this address. */
-      return true;
+      /* ecrecover throws for some smart contract wallets */
     }
   }
   return true;
