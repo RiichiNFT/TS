@@ -134,6 +134,18 @@ function showConfirm(title, body) {
   ]);
 }
 
+function showMobileWalletModal() {
+  return showModal(
+    "Connect on mobile",
+    "Open this page in MetaMask or Coinbase Wallet to connect. The app will open and load this page with wallet support.",
+    [
+      { label: "Cancel", value: "cancel", primary: false },
+      { label: "Open in Coinbase Wallet", value: "coinbase", primary: false },
+      { label: "Open in MetaMask", value: "metamask", primary: true }
+    ]
+  );
+}
+
 /* --- Animated show/hide for .fade-section elements --- */
 function fadeIn(el) {
   if (!el) return;
@@ -429,6 +441,17 @@ async function connectWallet() {
   if (isOnCooldown("connect")) return;
   const provider = getProvider();
   if (!provider) {
+    if (isMobile()) {
+      var mobileWalletLinks = document.getElementById("mobileWalletLinks");
+      if (mobileWalletLinks) {
+        mobileWalletLinks.classList.remove("is-hidden");
+        mobileWalletLinks.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      var choice = await showMobileWalletModal();
+      if (choice === "metamask") window.location.href = getMetamaskDeepLink();
+      else if (choice === "coinbase") window.location.href = getCoinbaseDeepLink();
+      return;
+    }
     await showAlert("No Wallet Found", "Install MetaMask, Coinbase Wallet, or open this page in the Base app to connect.");
     return;
   }
@@ -616,11 +639,20 @@ function setupMobileDeepLinks() {
   var coinbaseLink = document.getElementById("coinbaseDeepLink");
   if (!mobileWalletLinks) return;
 
-  var dappUrl = window.location.host + window.location.pathname;
-  if (metamaskLink) metamaskLink.href = "https://metamask.app.link/dapp/" + dappUrl;
+  var fullDappUrl = window.location.origin + window.location.pathname;
+  if (metamaskLink) metamaskLink.href = "https://link.metamask.io/dapp/" + encodeURIComponent(fullDappUrl);
   if (coinbaseLink) coinbaseLink.href = "https://go.cb-w.com/dapp?cb_url=" + encodeURIComponent(window.location.href);
 
   mobileWalletLinks.classList.remove("is-hidden");
+}
+
+function getMetamaskDeepLink() {
+  var fullDappUrl = window.location.origin + window.location.pathname;
+  return "https://link.metamask.io/dapp/" + encodeURIComponent(fullDappUrl);
+}
+
+function getCoinbaseDeepLink() {
+  return "https://go.cb-w.com/dapp?cb_url=" + encodeURIComponent(window.location.href);
 }
 
 function onDisconnect() {

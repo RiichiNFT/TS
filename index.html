@@ -14,6 +14,8 @@
   <div class="noise" aria-hidden="true"></div>
   <div class="gradient-orb gradient-orb--1" aria-hidden="true"></div>
   <div class="gradient-orb gradient-orb--2" aria-hidden="true"></div>
+  <div class="gradient-orb gradient-orb--3" aria-hidden="true"></div>
+  <div class="particles" aria-hidden="true"></div>
 
   <div class="wallet-address is-hidden" id="walletAddress" aria-live="polite">
       <span id="walletAddressText"></span>
@@ -25,13 +27,13 @@
     </div>
 
   <main class="main">
-    <a href="https://teamsecret.gg" target="_blank" rel="noopener noreferrer" class="logo-link">
-      <img src="eye.png" alt="Team Secret" class="logo logo-eye-img" />
+    <a href="https://teamsecret.gg" target="_blank" rel="noopener noreferrer" class="logo-link entrance" style="animation-delay: 0s">
+      <img src="team_secret_eye_tight.png" alt="Team Secret" class="logo logo-eye-img" />
     </a>
     <p class="tagline" id="tagline">The Inner Circle awaits...</p>
-    <p class="subline" id="subline">Connect your wallet to get started</p>
+    <p class="subline entrance" id="subline" style="animation-delay: 0.24s">Connect your wallet to get started</p>
 
-    <div class="connect-block fade-section" id="connectBlock">
+    <div class="connect-block fade-section entrance" id="connectBlock" style="animation-delay: 0.36s">
       <button type="button" class="btn-connect" id="connectWallet" aria-label="Connect wallet">
         <span class="btn-connect__icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -51,52 +53,56 @@
     </div>
 
     <div class="form-section fade-section is-hidden" id="formSection">
-      <div class="spinner-wrap is-hidden" id="spinnerWrap">
-        <span class="spinner" aria-label="Loading"></span>
-      </div>
-      <p class="wallet-hint subline-db-hint is-hidden" id="sublineDbHint"></p>
-      <div class="form-editable" id="formEditable">
-        <div class="form-row">
-          <label for="emailInput">Email <span class="required">(mandatory)</span></label>
-          <input type="email" id="emailInput" class="input" placeholder="you@example.com" autocomplete="email" />
-          <span class="field-error" id="emailError" aria-live="polite"></span>
+      <div class="glass-card">
+        <div class="spinner-wrap is-hidden" id="spinnerWrap">
+          <span class="spinner" aria-label="Loading"></span>
         </div>
-        <div class="form-row">
-          <label for="discordInput">Discord Handle <span class="optional">(optional)</span></label>
-          <input type="text" id="discordInput" class="input" placeholder="username" autocomplete="off" />
-          <span class="field-error" id="discordError" aria-live="polite"></span>
+        <p class="wallet-hint subline-db-hint is-hidden" id="sublineDbHint"></p>
+        <div class="form-editable" id="formEditable">
+          <div class="form-row">
+            <label for="emailInput">Email <span class="required">(mandatory)</span></label>
+            <input type="email" id="emailInput" class="input" placeholder="you@example.com" autocomplete="email" />
+            <span class="field-error" id="emailError" aria-live="polite"></span>
+          </div>
+          <div class="form-row">
+            <label for="discordInput">Discord Handle <span class="optional">(optional)</span></label>
+            <input type="text" id="discordInput" class="input" placeholder="username" autocomplete="off" />
+            <span class="field-error" id="discordError" aria-live="polite"></span>
+          </div>
+          <button type="button" class="btn-connect btn-complete" id="completeBtn">Complete</button>
         </div>
-        <button type="button" class="btn-connect btn-complete" id="completeBtn">Complete</button>
-      </div>
-      <div class="already-submitted is-hidden" id="alreadySubmittedSection">
-        <span class="success-check" aria-hidden="true">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-        </span>
-        <div class="submitted-rows">
-          <div class="submitted-row">
-            <span class="submitted-label">Wallet</span>
-            <span class="submitted-bracket">[ <span id="submittedWallet"></span> ]</span>
+        <div class="already-submitted is-hidden" id="alreadySubmittedSection">
+          <span class="success-check" aria-hidden="true">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          </span>
+          <div class="submitted-rows">
+            <div class="submitted-row">
+              <span class="submitted-label">Wallet</span>
+              <span class="submitted-bracket">[ <span id="submittedWallet"></span> ]</span>
+            </div>
+            <div class="submitted-row">
+              <span class="submitted-label">Email</span>
+              <span class="submitted-bracket">[ <span id="submittedEmail"></span> ]</span>
+            </div>
+            <div class="submitted-row">
+              <span class="submitted-label">Discord</span>
+              <span class="submitted-bracket">[ <span id="submittedDiscord"></span> ]</span>
+            </div>
           </div>
-          <div class="submitted-row">
-            <span class="submitted-label">Email</span>
-            <span class="submitted-bracket">[ <span id="submittedEmail"></span> ]</span>
-          </div>
-          <div class="submitted-row">
-            <span class="submitted-label">Discord</span>
-            <span class="submitted-bracket">[ <span id="submittedDiscord"></span> ]</span>
-          </div>
+          <p class="submitted-note">No changes can be made after submission.</p>
+          <p class="success-message">Stay tuned for Team Secret updates</p>
         </div>
-        <p class="submitted-note">No changes can be made after submission.</p>
-        <p class="success-message">Stay tuned for Team Secret updates</p>
       </div>
     </div>
 
     <div class="success-section fade-section is-hidden" id="successSection">
-      <span class="success-check" aria-hidden="true">
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-      </span>
-      <p class="success-message">Stay tuned for Team Secret updates</p>
-      <p class="success-db-hint is-hidden" id="successDbHint"></p>
+      <div class="glass-card">
+        <span class="success-check" aria-hidden="true">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </span>
+        <p class="success-message">Stay tuned for Team Secret updates</p>
+        <p class="success-db-hint is-hidden" id="successDbHint"></p>
+      </div>
     </div>
   </main>
 
