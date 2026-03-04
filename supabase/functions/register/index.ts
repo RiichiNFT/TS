@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     }
 
     const sig = typeof signature === "string" ? signature.trim() : "";
-    if (!sig.startsWith("0x") || !/^0x[0-9a-fA-F]+$/.test(sig) || sig.length < 66 || sig.length > 200 || /^0x0+$/.test(sig)) {
+    if (!sig.startsWith("0x") || !/^0x[0-9a-fA-F]+$/.test(sig) || sig.length < 66 || /^0x0+$/.test(sig)) {
       return json({ error: "Invalid signature format" }, 400);
     }
 

@@ -82,12 +82,13 @@ function requestSignature(message, address) {
 
 function normalizeSignature(raw) {
   if (raw == null) return null;
+  console.log("[TS Pass] raw signature from wallet:", typeof raw, raw);
 
   if (typeof raw === "string") {
     var s = raw.trim();
-    if (!/^[0-9a-fA-Fx]+$/.test(s)) return null;
-    if (s.startsWith("0x")) s = s.slice(2);
-    if (s.length < 64 || s.length > 198) return null;
+    if (s.startsWith("0x") || s.startsWith("0X")) s = s.slice(2);
+    if (!/^[0-9a-fA-F]+$/.test(s)) return null;
+    if (s.length < 64) return null;
     if (/^0+$/.test(s)) return null;
     return "0x" + s;
   }
@@ -120,6 +121,7 @@ function normalizeSignature(raw) {
         if (hex && hex.length >= 66 && !/^0x0+$/.test(hex)) return hex;
       }
     } catch (e) {
+      console.log("[TS Pass] normalizeSignature object parse failed:", e);
       return null;
     }
   }
