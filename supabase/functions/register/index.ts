@@ -15,8 +15,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const TABLE = "TS Pass Claims";
 
+const CORS_ORIGIN = Deno.env.get("CORS_ORIGIN") || "*";
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": CORS_ORIGIN,
   "Access-Control-Allow-Headers": "content-type, authorization, x-client-info, apikey",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -49,10 +50,22 @@ Deno.serve(async (req) => {
     const emailNorm = (email as string).trim().toLowerCase();
     const discordNorm = ((discord as string) || "").trim();
 
+    if (emailNorm.length > 254) {
+      return json({ error: "Email must be 254 characters or fewer.", field: "email" }, 400);
+    }
+    if (discordNorm.length > 0 && (discordNorm.length < 2 || discordNorm.length > 32)) {
+      return json({ error: "Discord handle must be between 2 and 32 characters.", field: "discord" }, 400);
+    }
+
+    const sig = typeof signature === "string" ? signature.trim() : "";
+    if (sig.length !== 132 || !sig.startsWith("0x") || /^0x0+$/.test(sig)) {
+      return json({ error: "Invalid signature format" }, 400);
+    }
+
     // --- Verify signature ---
     let recovered: string;
     try {
-      recovered = ethers.verifyMessage(message, signature).toLowerCase();
+      recovered = ethers.verifyMessage(message, sig).toLowerCase();
     } catch {
       return json({ error: "Invalid signature" }, 400);
     }
@@ -79,7 +92,7 @@ Deno.serve(async (req) => {
     // --- If already has email, just update signature ---
     if (existing && existing.email_address) {
       await sb.from(TABLE)
-        .update({ signature, nonce: null, updated_at: new Date().toISOString() })
+        .update({ signature: sig, nonce: null, updated_at: new Date().toISOString() })
         .eq("wallet_address", walletNorm);
       return json({
         success: true,
@@ -116,7 +129,7 @@ Deno.serve(async (req) => {
       wallet_address: walletNorm,
       email_address: emailNorm,
       discord_handle: discordNorm || null,
-      signature,
+      signature: sig,
       nonce: null,
       updated_at: new Date().toISOString(),
     };

@@ -80,6 +80,29 @@ function requestSignature(message, address) {
   });
 }
 
+function normalizeSignature(raw) {
+  if (!raw) return null;
+  if (typeof raw === "string") {
+    var s = raw.trim();
+    if (!s.startsWith("0x")) return null;
+    if (s.length !== 132) return null;
+    if (/^0x0+$/.test(s)) return null;
+    return s;
+  }
+  if (typeof raw === "object" && raw !== null && "r" in raw && "s" in raw && "v" in raw) {
+    try {
+      if (typeof ethers !== "undefined" && ethers.Signature && ethers.Signature.from) {
+        var sig = ethers.Signature.from({ r: raw.r, s: raw.s, v: raw.v });
+        var hex = sig.serialized;
+        if (hex && hex.length === 132 && !/^0x0+$/.test(hex)) return hex;
+      }
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}
+
 function verifySignature(message, signature, expectedAddress) {
   if (!signature || typeof signature !== "string" || signature.length < 130) return false;
   if (!expectedAddress || !message) return false;
@@ -468,9 +491,9 @@ async function connectWallet() {
     var connectNonce = await fetchNonce(address);
     connectButtonText.textContent = "Sign message…";
     var authMessage = buildConnectAuthMessage(address, connectNonce);
-    var signature;
+    var rawSignature;
     try {
-      signature = await requestSignature(authMessage, address);
+      rawSignature = await requestSignature(authMessage, address);
     } catch (signErr) {
       if (signErr && signErr.code === 4001) {
         connectButton.disabled = false;
@@ -479,6 +502,12 @@ async function connectWallet() {
       }
       startCooldown(connectButton, "Connect", "connect");
       await showAlert("Signature Required", "Please sign the message in your wallet to continue.");
+      return;
+    }
+    var signature = normalizeSignature(rawSignature);
+    if (!signature) {
+      startCooldown(connectButton, "Connect", "connect");
+      await showAlert("Invalid Signature", "Your wallet did not return a valid signature. Please try again or use another wallet.");
       return;
     }
     if (!verifyConnectSignature(authMessage, signature, address)) {
@@ -579,9 +608,9 @@ async function onComplete() {
 
     completeBtn.textContent = "Sign in wallet…";
     var message = buildRegistrationMessage(currentAddress, email, discord, nonce);
-    var signature;
+    var rawSignature;
     try {
-      signature = await requestSignature(message, currentAddress);
+      rawSignature = await requestSignature(message, currentAddress);
     } catch (signErr) {
       completeBtn.disabled = false;
       completeBtn.textContent = "Complete";
@@ -591,6 +620,13 @@ async function onComplete() {
         emailError.textContent = "Signature failed. Please try again.";
         if (signErr) console.error("personal_sign:", signErr);
       }
+      return;
+    }
+    var signature = normalizeSignature(rawSignature);
+    if (!signature) {
+      completeBtn.disabled = false;
+      completeBtn.textContent = "Complete";
+      emailError.textContent = "Your wallet did not return a valid signature. Please try again or use another wallet.";
       return;
     }
 
