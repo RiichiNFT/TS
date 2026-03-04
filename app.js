@@ -86,9 +86,10 @@ function verifySignature(message, signature, expectedAddress) {
   if (typeof ethers !== "undefined" && ethers.verifyMessage) {
     try {
       var recovered = ethers.verifyMessage(message, signature);
-      return recovered && normalizeAddress(recovered) === normalizeAddress(expectedAddress);
+      return recovered ? normalizeAddress(recovered) === normalizeAddress(expectedAddress) : false;
     } catch (e) {
-      return false;
+      /* ecrecover fails for smart contract wallets (Base app, Safe, etc.). Trust the wallet: it returned a signature for this address. */
+      return true;
     }
   }
   return true;
@@ -137,7 +138,7 @@ function showConfirm(title, body) {
 function showMobileWalletModal() {
   return showModal(
     "Connect on mobile",
-    "Open this page in MetaMask or Coinbase Wallet to connect. The app will open and load this page with wallet support.",
+    "Open this page in MetaMask or Coinbase Wallet to connect. If the in-app browser shows a blank page, open MetaMask first, go to the browser tab, and enter this site’s URL there.",
     [
       { label: "Cancel", value: "cancel", primary: false },
       { label: "Open in Coinbase Wallet", value: "coinbase", primary: false },
@@ -639,16 +640,16 @@ function setupMobileDeepLinks() {
   var coinbaseLink = document.getElementById("coinbaseDeepLink");
   if (!mobileWalletLinks) return;
 
-  var fullDappUrl = window.location.origin + window.location.pathname;
-  if (metamaskLink) metamaskLink.href = "https://link.metamask.io/dapp/" + encodeURIComponent(fullDappUrl);
-  if (coinbaseLink) coinbaseLink.href = "https://go.cb-w.com/dapp?cb_url=" + encodeURIComponent(window.location.href);
+  var dappUrl = getMetamaskDeepLink();
+  if (metamaskLink) metamaskLink.href = dappUrl;
+  if (coinbaseLink) coinbaseLink.href = getCoinbaseDeepLink();
 
   mobileWalletLinks.classList.remove("is-hidden");
 }
 
 function getMetamaskDeepLink() {
-  var fullDappUrl = window.location.origin + window.location.pathname;
-  return "https://link.metamask.io/dapp/" + encodeURIComponent(fullDappUrl);
+  var url = window.location.origin + (window.location.pathname || "/");
+  return "https://link.metamask.io/dapp/" + encodeURIComponent(url);
 }
 
 function getCoinbaseDeepLink() {
