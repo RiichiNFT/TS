@@ -647,8 +647,10 @@ function setupMobileDeepLinks() {
 }
 
 function getMetamaskDeepLink() {
-  var url = window.location.origin + (window.location.pathname || "/");
-  return "https://link.metamask.io/dapp/" + encodeURIComponent(url);
+  var host = window.location.host;
+  var path = (window.location.pathname || "/").replace(/^\/|\/$/g, "") || "";
+  var dappUrl = path ? host + "/" + path : host;
+  return "https://link.metamask.io/dapp/" + dappUrl;
 }
 
 function getCoinbaseDeepLink() {
