@@ -2,7 +2,7 @@
  * Team Secret Inner Circle Pass — Connect, form, persistence.
  * Works with Base app (AA), MetaMask, Coinbase Wallet, and other EVM injectors.
  * Data is stored only in Supabase; localStorage is not used.
- * Set SUPABASE_URL and SUPABASE_ANON_KEY in config.js.
+ * Config from window.__ENV__ (set by env.js). Run scripts/inject-env.js to generate env.js.
  *
  * Wallet re-authentication:
  * - No wallet state is persisted (no localStorage, sessionStorage, cookies, or cached provider state).
@@ -82,7 +82,6 @@ function requestSignature(message, address) {
 
 function normalizeSignature(raw) {
   if (raw == null) return null;
-  console.log("[TS Pass] raw signature from wallet:", typeof raw, raw);
 
   if (typeof raw === "string") {
     var s = raw.trim();
@@ -121,7 +120,6 @@ function normalizeSignature(raw) {
         if (hex && hex.length >= 66 && !/^0x0+$/.test(hex)) return hex;
       }
     } catch (e) {
-      console.log("[TS Pass] normalizeSignature object parse failed:", e);
       return null;
     }
   }
@@ -295,7 +293,7 @@ function showJoinedState(address) {
   if (sublineDbHint) {
     sublineDbHint.textContent = isSupabaseConfigured()
       ? ""
-      : "Database not configured — data will only be saved in this browser. Add SUPABASE_URL and SUPABASE_ANON_KEY in config.js to save to Supabase.";
+      : "Database not configured — data will only be saved in this browser. Run node scripts/inject-env.js with SUPABASE_URL and SUPABASE_ANON_KEY to create env.js.";
     sublineDbHint.classList.toggle("is-hidden", isSupabaseConfigured());
   }
   emailError.textContent = "";
@@ -601,7 +599,7 @@ async function onComplete() {
     return;
   }
   if (!getSupabase()) {
-    emailError.textContent = "Database not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY in config.js.";
+    emailError.textContent = "Database not configured. Run node scripts/inject-env.js with SUPABASE_URL and SUPABASE_ANON_KEY to create env.js.";
     return;
   }
 
@@ -725,7 +723,7 @@ function onDisconnect() {
 
 function init() {
   if (!isSupabaseConfigured()) {
-    console.warn("TS Pass: Supabase not configured. Set window.SUPABASE_URL and window.SUPABASE_ANON_KEY in config.js to save to your database.");
+    console.warn("TS Pass: Supabase not configured. Run node scripts/inject-env.js with SUPABASE_URL and SUPABASE_ANON_KEY to create env.js.");
   }
   resetToConnectState();
   setupMobileDeepLinks();
