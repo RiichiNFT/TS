@@ -424,7 +424,10 @@ async function fetchNonce(address) {
 async function saveViaEdgeFunction(address, email, discord, message, signature) {
   var res = await fetch(EDGE_FUNCTION_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + SUPABASE_ANON_KEY
+    },
     body: JSON.stringify({
       wallet_address: normalizeAddress(address),
       email: email,
