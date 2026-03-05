@@ -1,0 +1,8 @@
+# Env injection — contains Supabase anon key and URLs; never commit
+env.js
+.env
+.env.local
+.env.*.local
+
+# Optional: uncomment if you keep a local config with real keys
+# config.js

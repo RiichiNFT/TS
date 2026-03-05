@@ -26,13 +26,27 @@ Then open the URL shown (e.g. http://localhost:3000 or http://localhost:8000).
 - Wallet connection via `window.ethereum` (EIP-1193)
 - Optional switch to Base mainnet after connect
 
+## Config and secrets (no keys in repo)
+
+The app reads config from **`window.__ENV__`**, which is set by **`env.js`**. That file is **generated** and **gitignored**, so real keys are never committed.
+
+**Local dev:**
+1. Copy `.env.example` to `.env` and fill in your Supabase URL, anon key, and Edge Function URL.
+2. Run: `node scripts/inject-env.js` — this writes `env.js` from your `.env`.
+3. Serve the app as below. If `env.js` is missing, the app loads but shows "Database not configured".
+
+**Production (e.g. Vercel):**  
+Add `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `EDGE_FUNCTION_URL` (and optionally `SUPABASE_TABLE`) in your project's environment variables. Set the build command to run `node scripts/inject-env.js` before your static export (or as the only step if you're serving the repo as static files). The built output will include a generated `env.js` with those values.
+
+**Optional:** Install `dotenv` for local dev so `inject-env.js` reads `.env` automatically: `npm install dotenv` (or run with env vars set: `SUPABASE_URL=... SUPABASE_ANON_KEY=... node scripts/inject-env.js`).
+
+---
+
 ## Data storage (Supabase)
 
-Data is saved to your **Supabase** table **"TS Pass Claim"** when you configure it.
+Data is saved to your **Supabase** table when you configure it (via `env.js`).
 
-1. Copy `config.js` and set your Supabase project URL and anon key:
-   - In **config.js**: set `window.SUPABASE_URL` (e.g. `https://xxxx.supabase.co`) and `window.SUPABASE_ANON_KEY` (from Supabase → Settings → API).
-2. **Table name:** The app uses the table name in `config.js` (`window.SUPABASE_TABLE`). Default is `"TS Pass Claim"`. If your table has a different name (e.g. `ts_pass_claim`), set `window.SUPABASE_TABLE` to that name.
+1. **Table name:** Set `SUPABASE_TABLE` in `.env` / env vars (default `"TS Pass Claims"`).
 3. **Expected columns:** `wallet_address` (text, unique), `email_address` (text, nullable), `discord_handle` (text, nullable). On connect we upsert a row by `wallet_address`; on Complete we update `email` and `discord_handle` for that row.
 
 Only Supabase is used for storage; localStorage is not used for form data.

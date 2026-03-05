@@ -13,7 +13,7 @@
 
 var SUPABASE_URL = (typeof window !== "undefined" && window.SUPABASE_URL) || "";
 var SUPABASE_ANON_KEY = (typeof window !== "undefined" && window.SUPABASE_ANON_KEY) || "";
-var SUPABASE_TABLE = (typeof window !== "undefined" && window.SUPABASE_TABLE) || "TS Pass Claim";
+var SUPABASE_TABLE = (typeof window !== "undefined" && window.SUPABASE_TABLE) || "TS Pass Claims";
 var EDGE_FUNCTION_URL = (typeof window !== "undefined" && window.EDGE_FUNCTION_URL) || "";
 var TAGLINE_DEFAULT = "The Inner Circle awaits...";
 
