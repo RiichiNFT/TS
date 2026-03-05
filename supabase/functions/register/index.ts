@@ -2,10 +2,13 @@
  * Supabase Edge Function: /register
  *
  * Receives registration data + signature, verifies the signature server-side,
- * checks for duplicate email/discord, validates the nonce, and saves.
+ * checks for duplicate email/discord, validates the nonce, saves, and sends
+ * a confirmation email via Resend on first-time registration.
  *
  * Deploy: supabase functions deploy register
- * Set secrets: supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...
+ * Set secrets:
+ *   supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...
+ *   supabase secrets set RESEND_API_KEY=re_...
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -13,6 +16,7 @@ import { ethers } from "https://esm.sh/ethers@6.13.4";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const TABLE = "TS Pass Claims";
 
 const CORS_ORIGIN = Deno.env.get("CORS_ORIGIN") || "*";
@@ -27,6 +31,70 @@ function json(body: Record<string, unknown>, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function formatWallet(addr: string): string {
+  if (!addr || addr.length < 10) return addr;
+  return addr.slice(0, 6) + "…" + addr.slice(-4);
+}
+
+async function sendConfirmationEmail(to: string, wallet: string): Promise<boolean> {
+  if (!RESEND_API_KEY) {
+    console.warn("RESEND_API_KEY not set; skipping confirmation email.");
+    return false;
+  }
+
+  const shortWallet = formatWallet(wallet);
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+      },
+      body: JSON.stringify({
+        from: "Team Secret <onboarding@resend.dev>",
+        to: [to],
+        subject: "You're registered — Team Secret Inner Circle",
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #e0e0e0; background: #111111; border-radius: 12px;">
+            <h2 style="color: #ffffff; margin: 0 0 16px;">Welcome to the Inner Circle</h2>
+            <p style="margin: 0 0 12px; line-height: 1.6;">
+              Your registration for the <strong>Team Secret Inner Circle</strong> has been confirmed.
+            </p>
+            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+              <tr>
+                <td style="padding: 8px 0; color: #999;">Wallet</td>
+                <td style="padding: 8px 0; color: #fff; font-family: monospace;">${shortWallet}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #999;">Email</td>
+                <td style="padding: 8px 0; color: #fff;">${to}</td>
+              </tr>
+            </table>
+            <p style="margin: 20px 0 0; line-height: 1.6;">
+              Stay tuned for Team Secret updates. No further action is needed.
+            </p>
+            <hr style="border: none; border-top: 1px solid #333; margin: 24px 0;" />
+            <p style="margin: 0; font-size: 12px; color: #666;">
+              This is an automated message from Team Secret. If you did not register, you can ignore this email.
+            </p>
+          </div>
+        `,
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      console.error("Resend error:", res.status, body);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("sendConfirmationEmail failed:", err);
+    return false;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -146,11 +214,19 @@ Deno.serve(async (req) => {
       }
     }
 
+    const emailSent = await sendConfirmationEmail(emailNorm, walletNorm);
+    if (emailSent) {
+      await sb.from(TABLE)
+        .update({ confirmation_sent: true })
+        .eq("wallet_address", walletNorm);
+    }
+
     return json({
       success: true,
       alreadyExisted: false,
       email: emailNorm,
       discord: discordNorm,
+      confirmationSent: emailSent,
     });
   } catch (err) {
     console.error("register:", err);

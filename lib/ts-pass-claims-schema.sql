@@ -7,6 +7,7 @@ create table if not exists public."TS Pass Claims" (
   discord_handle text,
   signature text,
   nonce text,
+  confirmation_sent boolean default false,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null
 );
