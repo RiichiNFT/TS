@@ -328,16 +328,12 @@ function loadExistingEntry(address, callback) {
 function loadPrefill(address) {
   loadExistingEntry(address, function (data) {
     if (spinnerWrap) spinnerWrap.classList.add("is-hidden");
-    if (data && data.email_address) {
-      showAlreadySubmitted(data.email_address, data.discord_handle || "");
+    if (data && data.registered) {
+      showAlreadySubmitted();
       return;
     }
     sublineEl.textContent = "Complete your details below.";
     if (formEditable) formEditable.classList.remove("is-hidden");
-    if (data && (data.email_address || data.discord_handle)) {
-      if (data.email_address) emailInput.value = data.email_address;
-      if (data.discord_handle) discordInput.value = data.discord_handle;
-    }
   });
 }
 
@@ -347,7 +343,9 @@ function showAlreadySubmitted(email, discord) {
   if (formEditable) formEditable.classList.add("is-hidden");
   if (alreadySubmittedSection) {
     if (submittedWalletEl) submittedWalletEl.textContent = formatAddress(currentAddress);
-    if (submittedEmailEl) submittedEmailEl.textContent = email;
+    // Only show email/discord if provided (e.g. after fresh registration via Edge Function).
+    // On page reload, check_registration no longer returns PII to prevent enumeration.
+    if (submittedEmailEl) submittedEmailEl.textContent = email || "Registered";
     if (submittedDiscordEl) submittedDiscordEl.textContent = discord || "—";
     alreadySubmittedSection.classList.remove("is-hidden");
   }

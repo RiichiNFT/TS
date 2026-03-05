@@ -39,11 +39,26 @@ security definer
 as $$
 declare
   v_nonce text;
+  v_wallet text := lower(trim(p_wallet));
 begin
+  -- Validate wallet address format to prevent table pollution
+  if p_wallet !~ '^0x[0-9a-fA-F]{40}$' then
+    raise exception 'Invalid wallet address format';
+  end if;
+
+  -- Rate limit: 5-second cooldown per wallet to prevent abuse
+  if exists(
+    select 1 from public."TS Pass Claims"
+    where wallet_address = v_wallet
+      and updated_at > now() - interval '5 seconds'
+  ) then
+    raise exception 'Too many requests. Please wait a few seconds.';
+  end if;
+
   v_nonce := encode(gen_random_bytes(16), 'hex');
 
   insert into public."TS Pass Claims" (wallet_address, nonce)
-  values (lower(trim(p_wallet)), v_nonce)
+  values (v_wallet, v_nonce)
   on conflict (wallet_address)
   do update set nonce = v_nonce, updated_at = now();
 
@@ -52,9 +67,9 @@ end;
 $$;
 
 -- ============================================================
--- check_registration: returns email & discord for a wallet.
--- Called by the client after wallet connect to check if already
--- registered. SECURITY DEFINER so it bypasses RLS.
+-- check_registration: returns ONLY whether a wallet is registered.
+-- Does NOT return email or discord (PII) to prevent enumeration
+-- attacks via the public anon key.
 -- ============================================================
 
 create or replace function public.check_registration(p_wallet text)
@@ -62,18 +77,19 @@ returns json
 language plpgsql
 security definer
 as $$
-declare
-  v_result json;
 begin
-  select json_build_object(
-    'email_address', email_address,
-    'discord_handle', discord_handle
-  ) into v_result
-  from public."TS Pass Claims"
-  where wallet_address = lower(trim(p_wallet))
-    and email_address is not null;
+  -- Validate wallet address format
+  if p_wallet !~ '^0x[0-9a-fA-F]{40}$' then
+    raise exception 'Invalid wallet address format';
+  end if;
 
-  return coalesce(v_result, '{}'::json);
+  return json_build_object(
+    'registered', exists(
+      select 1 from public."TS Pass Claims"
+      where wallet_address = lower(trim(p_wallet))
+        and email_address is not null
+    )
+  );
 end;
 $$;
 
@@ -97,6 +113,11 @@ declare
   v_discord_taken boolean := false;
   v_wallet_norm text := lower(trim(p_exclude_wallet));
 begin
+  -- Validate wallet address format
+  if p_exclude_wallet !~ '^0x[0-9a-fA-F]{40}$' then
+    raise exception 'Invalid wallet address format';
+  end if;
+
   if p_email is not null and trim(p_email) != '' then
     select exists(
       select 1 from public."TS Pass Claims"

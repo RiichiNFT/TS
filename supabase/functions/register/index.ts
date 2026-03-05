@@ -150,9 +150,15 @@ Deno.serve(async (req) => {
       return json({ error: "Signature does not match wallet address" }, 403);
     }
 
-    // --- Verify nonce in message ---
+    // --- Verify signed message binds to submitted email ---
+    const emailInMessage = message.match(/Email:\s*(.+)/i)?.[1]?.trim().toLowerCase();
+    if (emailInMessage && emailInMessage !== emailNorm) {
+      return json({ error: "Email in signed message does not match submission." }, 403);
+    }
+
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+    // --- Step A: Read the current nonce and registration state ---
     const { data: existing } = await sb
       .from(TABLE)
       .select("nonce, email_address, discord_handle, updated_at")
@@ -161,6 +167,29 @@ Deno.serve(async (req) => {
 
     if (!existing || !existing.nonce || !message.includes(existing.nonce)) {
       return json({ error: "Invalid or expired nonce. Please try again." }, 403);
+    }
+
+    // --- Nonce TTL: reject nonces older than 10 minutes ---
+    if (existing.updated_at) {
+      const nonceAge = Date.now() - new Date(existing.updated_at).getTime();
+      if (nonceAge > 10 * 60 * 1000) {
+        return json({ error: "Nonce expired. Please try again." }, 403);
+      }
+    }
+
+    // --- Step B: Atomically consume the nonce (compare-and-swap) ---
+    // Only clears the nonce if it still matches what we read. If a concurrent
+    // request already consumed it, this UPDATE matches 0 rows → replay blocked.
+    const { data: consumed } = await sb
+      .from(TABLE)
+      .update({ nonce: null, updated_at: new Date().toISOString() })
+      .eq("wallet_address", walletNorm)
+      .eq("nonce", existing.nonce)
+      .select("wallet_address")
+      .maybeSingle();
+
+    if (!consumed) {
+      return json({ error: "Nonce already used. Please try again." }, 403);
     }
 
     // --- Rate limit: 30s cooldown per wallet ---
@@ -174,7 +203,7 @@ Deno.serve(async (req) => {
     // --- If already has email, just update signature ---
     if (existing && existing.email_address) {
       await sb.from(TABLE)
-        .update({ signature: sig, nonce: null, updated_at: new Date().toISOString() })
+        .update({ signature: sig, updated_at: new Date().toISOString() })
         .eq("wallet_address", walletNorm);
       return json({
         success: true,
