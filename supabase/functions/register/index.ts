@@ -19,7 +19,7 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const TABLE = "TS Pass Claims";
 
-const CORS_ORIGIN = Deno.env.get("CORS_ORIGIN") || "*";
+const CORS_ORIGIN = Deno.env.get("CORS_ORIGIN") || "https://ts-ebon-one.vercel.app";
 const corsHeaders = {
   "Access-Control-Allow-Origin": CORS_ORIGIN,
   "Access-Control-Allow-Headers": "content-type, authorization, x-client-info, apikey",
@@ -31,6 +31,10 @@ function json(body: Record<string, unknown>, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 function formatWallet(addr: string): string {
@@ -66,11 +70,11 @@ async function sendConfirmationEmail(to: string, wallet: string): Promise<boolea
             <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
               <tr>
                 <td style="padding: 8px 0; color: #999;">Wallet</td>
-                <td style="padding: 8px 0; color: #fff; font-family: monospace;">${shortWallet}</td>
+                <td style="padding: 8px 0; color: #fff; font-family: monospace;">${escapeHtml(shortWallet)}</td>
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: #999;">Email</td>
-                <td style="padding: 8px 0; color: #fff;">${to}</td>
+                <td style="padding: 8px 0; color: #fff;">${escapeHtml(to)}</td>
               </tr>
             </table>
             <p style="margin: 20px 0 0; line-height: 1.6;">
@@ -115,6 +119,9 @@ Deno.serve(async (req) => {
     }
 
     const walletNorm = (wallet_address as string).trim().toLowerCase();
+    if (!/^0x[0-9a-f]{40}$/.test(walletNorm)) {
+      return json({ error: "Invalid wallet address format" }, 400);
+    }
     const emailNorm = (email as string).trim().toLowerCase();
     const discordNorm = ((discord as string) || "").trim();
 
@@ -130,7 +137,8 @@ Deno.serve(async (req) => {
       return json({ error: "Invalid signature format" }, 400);
     }
 
-    // --- Verify signature (ecrecover); smart contract wallets (e.g. Base app) may throw ---
+    // --- Verify signature (ecrecover) ---
+    // TODO: implement EIP-1271 isValidSignature on-chain check to support smart contract wallets (e.g. Base app AA).
     let recovered: string | null = null;
     try {
       recovered = ethers.verifyMessage(message, sig).toLowerCase();
@@ -138,7 +146,7 @@ Deno.serve(async (req) => {
       recovered = null;
     }
 
-    if (recovered !== null && recovered !== walletNorm) {
+    if (recovered === null || recovered !== walletNorm) {
       return json({ error: "Signature does not match wallet address" }, 403);
     }
 
@@ -147,13 +155,19 @@ Deno.serve(async (req) => {
 
     const { data: existing } = await sb
       .from(TABLE)
-      .select("nonce, email_address, discord_handle")
+      .select("nonce, email_address, discord_handle, updated_at")
       .eq("wallet_address", walletNorm)
       .maybeSingle();
 
-    if (existing && existing.nonce) {
-      if (!message.includes(existing.nonce)) {
-        return json({ error: "Invalid or expired nonce. Please try again." }, 403);
+    if (!existing || !existing.nonce || !message.includes(existing.nonce)) {
+      return json({ error: "Invalid or expired nonce. Please try again." }, 403);
+    }
+
+    // --- Rate limit: 30s cooldown per wallet ---
+    if (existing.email_address && existing.updated_at) {
+      const elapsed = Date.now() - new Date(existing.updated_at).getTime();
+      if (elapsed < 30_000) {
+        return json({ error: "Too many requests. Please wait before trying again." }, 429);
       }
     }
 

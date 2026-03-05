@@ -135,10 +135,11 @@ function verifySignature(message, signature, expectedAddress) {
       var recovered = ethers.verifyMessage(message, signature);
       if (recovered && normalizeAddress(recovered) === normalizeAddress(expectedAddress)) return true;
     } catch (e) {
-      /* ecrecover throws for some smart contract wallets (e.g. Base app) */
+      /* ecrecover throws for smart contract wallets (e.g. Base app AA).
+         TODO: implement EIP-1271 isValidSignature on-chain check to support these wallets. */
     }
   }
-  return true;
+  return false;
 }
 
 function verifyConnectSignature(message, signature, expectedAddress) {
@@ -314,10 +315,7 @@ function loadExistingEntry(address, callback) {
     if (callback) callback(null);
     return;
   }
-  sb.from(SUPABASE_TABLE)
-    .select("email_address, discord_handle")
-    .eq("wallet_address", normalizeAddress(address))
-    .maybeSingle()
+  sb.rpc("check_registration", { p_wallet: normalizeAddress(address) })
     .then(function (r) {
       if (r.error) {
         if (callback) callback(null);
@@ -388,29 +386,19 @@ function validateDiscord(value) {
   return null;
 }
 
-async function checkDuplicateEmail(email, excludeWalletAddress) {
+async function checkDuplicates(email, discord, excludeWalletAddress) {
   var sb = getSupabase();
-  if (!sb) return false;
-  var normalized = (email || "").trim().toLowerCase();
-  var currentNorm = normalizeAddress(excludeWalletAddress);
-  var r = await sb.from(SUPABASE_TABLE).select("wallet_address").eq("email_address", normalized);
-  if (r.error || !r.data) return false;
-  return r.data.some(function (row) {
-    return (row.wallet_address || "").toLowerCase() !== currentNorm;
+  if (!sb) return { emailTaken: false, discordTaken: false };
+  var r = await sb.rpc("check_duplicate", {
+    p_email: (email || "").trim().toLowerCase(),
+    p_discord: (discord || "").trim(),
+    p_exclude_wallet: normalizeAddress(excludeWalletAddress)
   });
-}
-
-async function checkDuplicateDiscord(discord, excludeWalletAddress) {
-  var sb = getSupabase();
-  if (!sb) return false;
-  var normalized = (discord || "").trim();
-  if (!normalized) return false;
-  var currentNorm = normalizeAddress(excludeWalletAddress);
-  var r = await sb.from(SUPABASE_TABLE).select("wallet_address").eq("discord_handle", normalized);
-  if (r.error || !r.data) return false;
-  return r.data.some(function (row) {
-    return (row.wallet_address || "").toLowerCase() !== currentNorm;
-  });
+  if (r.error || !r.data) return { emailTaken: false, discordTaken: false };
+  return {
+    emailTaken: r.data.email_taken || false,
+    discordTaken: r.data.discord_taken || false
+  };
 }
 
 async function fetchNonce(address) {
@@ -445,47 +433,6 @@ async function saveViaEdgeFunction(address, email, discord, message, signature) 
   return body;
 }
 
-async function saveViaDirectSupabase(address, email, discord, signature) {
-  var sb = getSupabase();
-  if (!sb) throw new Error("Database not configured.");
-  var walletNorm = normalizeAddress(address);
-
-  var existing = await sb.from(SUPABASE_TABLE)
-    .select("email_address, discord_handle")
-    .eq("wallet_address", walletNorm)
-    .maybeSingle();
-
-  if (existing.data && existing.data.email_address) {
-    var upd = await sb.from(SUPABASE_TABLE)
-      .update({ signature: signature || null })
-      .eq("wallet_address", walletNorm);
-    if (upd.error) throw new Error(upd.error.message || "Could not update.");
-    return { alreadyExisted: true, email: existing.data.email_address, discord: existing.data.discord_handle || "" };
-  }
-
-  var payload = {
-    wallet_address: walletNorm,
-    email_address: email,
-    discord_handle: discord || null,
-    signature: signature || null
-  };
-
-  var res = await sb.from(SUPABASE_TABLE).upsert(payload, { onConflict: "wallet_address" });
-  if (res.error) {
-    var isNoConstraint = (res.error.message || "").indexOf("no unique or exclusion constraint") !== -1;
-    if (isNoConstraint) {
-      var ins = await sb.from(SUPABASE_TABLE).insert(payload);
-      if (ins.error) throw new Error(ins.error.message || "Could not save to database.");
-      return { alreadyExisted: false, email: email, discord: discord };
-    }
-    var msg = res.error.message || "Could not save to database.";
-    if (res.error.message && res.error.message.indexOf("row-level security") !== -1) {
-      msg = "Database rejected: Row Level Security. Allow insert/update for anon in Supabase.";
-    }
-    throw new Error(msg);
-  }
-  return { alreadyExisted: false, email: email, discord: discord };
-}
 
 async function connectWallet() {
   if (isOnCooldown("connect")) return;
@@ -514,6 +461,11 @@ async function connectWallet() {
       return;
     }
     const address = accounts[0];
+    if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+      startCooldown(connectButton, "Connect", "connect");
+      await showAlert("Invalid Address", "Your wallet returned an invalid Ethereum address.");
+      return;
+    }
     connectButtonText.textContent = "Preparing…";
     var connectNonce = await fetchNonce(address);
     connectButtonText.textContent = "Sign message…";
@@ -610,12 +562,9 @@ async function onComplete() {
   completeBtn.textContent = "Checking…";
 
   try {
-    var results = await Promise.all([
-      checkDuplicateEmail(email, currentAddress),
-      checkDuplicateDiscord(discord, currentAddress)
-    ]);
-    var isEmailDup = results[0];
-    var isDiscordDup = results[1];
+    var dupResult = await checkDuplicates(email, discord, currentAddress);
+    var isEmailDup = dupResult.emailTaken;
+    var isDiscordDup = dupResult.discordTaken;
     if (isEmailDup || isDiscordDup) {
       if (isEmailDup) {
         emailError.textContent = "This email is already registered.";
@@ -665,12 +614,10 @@ async function onComplete() {
     }
 
     completeBtn.textContent = "Saving…";
-    var result;
-    if (EDGE_FUNCTION_URL) {
-      result = await saveViaEdgeFunction(currentAddress, email, discord, message, signature);
-    } else {
-      result = await saveViaDirectSupabase(currentAddress, email, discord, signature);
+    if (!EDGE_FUNCTION_URL) {
+      throw new Error("Registration service not configured.");
     }
+    var result = await saveViaEdgeFunction(currentAddress, email, discord, message, signature);
     if (successDbHint) successDbHint.classList.add("is-hidden");
     showAlreadySubmitted(result.email, result.discord);
   } catch (err) {
